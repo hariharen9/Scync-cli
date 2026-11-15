@@ -1,0 +1,73 @@
+import { getValidSession } from '../../auth/session.js';
+import { getSecrets, restoreSecretVersion } from '../../core/firestore.js';
+import { getDb } from '../../core/firebase.js';
+import { unlockVault } from '../../core/vault-session.js';
+import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError, CliError, ExitCode } from '../errors.js';
+import pc from 'picocolors';
+
+export interface RestoreOptions {
+  project?: string;
+  env?: string;
+  id?: string;
+  force?: boolean;
+}
+
+export async function restoreCommand(name: string, versionArg: string, options: RestoreOptions): Promise<void> {
+  const session = await getValidSession();
+  if (!session) throw new AuthRequiredError();
+
+  const targetVerNum = parseInt(versionArg.replace(/^v/i, ''), 10);
+  if (isNaN(targetVerNum)) {
+    throw new CliError(`Invalid version number '${versionArg}'. Must be an integer like 1 or v1.`, ExitCode.GENERAL_ERROR);
+  }
+
+  const db = getDb();
+  const allSecrets = await getSecrets(session.uid, db);
+
+  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
+
+  if (options.id) {
+    matches = matches.filter(s => s.id === options.id);
+  }
+  if (options.project) {
+    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
+  }
+  if (options.env) {
+    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
+  }
+
+  if (matches.length === 0) {
+    throw new SecretNotFoundError(name);
+  }
+
+  if (matches.length > 1) {
+    throw new AmbiguousSecretError(
+      name,
+      matches.map(m => ({
+        id: m.id,
+        service: m.service,
+        environment: m.environment,
+        projectId: m.projectId
+      }))
+    );
+  }
+
+  const target = matches[0];
+  const versions = target.versions || [];
+  const targetVer = versions.find(v => v.version === targetVerNum);
+
+  if (!targetVer) {
+    const available = versions.map(v => `v${v.version}`).join(', ') || 'none';
+    throw new CliError(
+      `Version ${targetVerNum} not found in history for secret '${target.name}'. Available versions: ${available}`,
+      ExitCode.NOT_FOUND
+    );
+  }
+
+  const { key } = await unlockVault(session.uid, db);
+
+  await restoreSecretVersion(session.uid, key, target.id, targetVerNum, target, db);
+
+  const nextVer = (target.version || 1) + 1;
+  console.log(pc.green(`✓ Successfully restored '${target.name}' from v${targetVerNum} (now at v${nextVer})`));
+}

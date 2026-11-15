@@ -7,6 +7,12 @@ import { lsCommand } from './commands/ls.js';
 import { getCommand } from './commands/get.js';
 import { showCommand } from './commands/show.js';
 import { pullCommand } from './commands/pull.js';
+import { setCommand } from './commands/set.js';
+import { updateCommand } from './commands/update.js';
+import { rotateCommand } from './commands/rotate.js';
+import { restoreCommand } from './commands/restore.js';
+import { rmCommand } from './commands/rm.js';
+import { pushCommand } from './commands/push.js';
 import { CliError, ExitCode } from './errors.js';
 import pc from 'picocolors';
 
@@ -93,6 +99,78 @@ export function createProgram(): Command {
       await showCommand(name, opts);
     });
 
+  // --- Secret Write Commands ---
+  program
+    .command('set <name>')
+    .description('Create a new secret (or update if already exists)')
+    .option('-v, --value <value>', 'Secret value (warning: leaks to process list; prefer stdin/prompt)')
+    .option('-F, --file <file>', 'Read secret value from file')
+    .option('-s, --service <service>', 'Service name (AWS, Stripe, OpenAI, etc.)')
+    .option('-t, --type <type>', 'Secret type (API Key, Database URL, etc.)')
+    .option('-e, --env <environment>', 'Environment (default: Development)')
+    .option('--status <status>', 'Secret status (default: Active)')
+    .option('-p, --project <project>', 'Associated project ID')
+    .option('--notes <notes>', 'Optional plaintext note')
+    .option('--expires <date>', 'Expiry date (YYYY-MM-DD)')
+    .option('-f, --force', 'Overwrite without confirmation if secret already exists')
+    .action(async (name, opts) => {
+      await setCommand(name, opts);
+    });
+
+  program
+    .command('update <name>')
+    .alias('edit')
+    .description('Update secret value and/or metadata of an existing secret')
+    .option('-v, --value <value>', 'New secret value')
+    .option('-F, --file <file>', 'Read new secret value from file')
+    .option('-s, --service <service>', 'Update service name')
+    .option('-t, --type <type>', 'Update secret type')
+    .option('-e, --env <environment>', 'Target environment')
+    .option('--status <status>', 'Update status (Active, Rotated, Expired, Revoked)')
+    .option('-p, --project <project>', 'Target project ID')
+    .option('--notes <notes>', 'Update note')
+    .option('--expires <date>', 'Update expiry date')
+    .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
+    .option('-f, --force', 'Override optimistic concurrency check')
+    .action(async (name, opts) => {
+      await updateCommand(name, opts);
+    });
+
+  program
+    .command('rotate <name>')
+    .description('Rotate a secret with a new value and record rotation timestamp')
+    .option('-v, --value <value>', 'New rotated secret value')
+    .option('-F, --file <file>', 'Read new rotated secret value from file')
+    .option('-p, --project <project>', 'Disambiguate matching secrets by project')
+    .option('-e, --env <environment>', 'Disambiguate matching secrets by environment')
+    .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
+    .option('-f, --force', 'Override optimistic concurrency check')
+    .action(async (name, opts) => {
+      await rotateCommand(name, opts);
+    });
+
+  program
+    .command('restore <name> <version>')
+    .description('Restore a secret to a previous version from its history')
+    .option('-p, --project <project>', 'Disambiguate matching secrets by project')
+    .option('-e, --env <environment>', 'Disambiguate matching secrets by environment')
+    .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
+    .action(async (name, version, opts) => {
+      await restoreCommand(name, version, opts);
+    });
+
+  program
+    .command('rm <name>')
+    .alias('delete')
+    .description('Delete a secret from the vault')
+    .option('-p, --project <project>', 'Disambiguate matching secrets by project')
+    .option('-e, --env <environment>', 'Disambiguate matching secrets by environment')
+    .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
+    .option('-f, --force', 'Skip delete confirmation prompt')
+    .action(async (name, opts) => {
+      await rmCommand(name, opts);
+    });
+
   // --- .env Workflows ---
   program
     .command('pull')
@@ -104,6 +182,20 @@ export function createProgram(): Command {
     .option('-f, --force', 'Overwrite target file if it already exists')
     .action(async (opts) => {
       await pullCommand(opts);
+    });
+
+  program
+    .command('push [file]')
+    .alias('import')
+    .description('Import secrets from a .env file into the vault')
+    .option('-p, --project <project>', 'Assign imported secrets to project')
+    .option('-e, --env <environment>', 'Target environment (default: Development)')
+    .option('-s, --service <service>', 'Override service name for all imported secrets')
+    .option('-t, --type <type>', 'Secret type (default: Secret Key)')
+    .option('--overwrite', 'Overwrite existing secrets with matching names in target environment')
+    .option('--dry-run', 'Preview changes without modifying the vault')
+    .action(async (file, opts) => {
+      await pushCommand(file, opts);
     });
 
   return program;

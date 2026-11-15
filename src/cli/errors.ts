@@ -50,3 +50,14 @@ export class AmbiguousSecretError extends CliError {
     this.name = 'AmbiguousSecretError';
   }
 }
+
+export class ConflictError extends CliError {
+  constructor(name: string, expectedVersion: number, actualVersion: number) {
+    super(
+      `Conflict detected on '${name}': secret is currently at v${actualVersion}, but expected v${expectedVersion}.\n` +
+      `Someone else (or another session) may have modified it. Use --force to override.`,
+      ExitCode.CONFLICT
+    );
+    this.name = 'ConflictError';
+  }
+}

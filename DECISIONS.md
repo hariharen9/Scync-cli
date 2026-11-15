@@ -38,3 +38,21 @@ This log tracks architectural and design decisions made during the development o
   - Prompts ("Enter master password:") and warning messages are written to `stderr`.
   - In pipe mode (`!stdout.isTTY` or `--raw`), `scync get` writes ONLY the raw secret to `stdout` with no trailing newline or ANSI colors.
 
+---
+
+## 2026-11-15: Phase 2 — Writes, Conflicts & Import Implementation
+
+### Decision 7: Optimistic Concurrency and Transactional Writes
+- **Context:** Spec §6.3 and §8.5 mandate safe concurrent edits across Web and CLI clients with conflict detection (exit code 6).
+- **Decision:** Encrypt secret payloads *before* initiating the Firestore transaction to minimize lock time. In `runTransaction`, verify the current document version against expected version. If mismatched and `--force` is not passed, abort with `ConflictError` (exit code 6).
+- **Rationale:** Guarantees atomicity between version verification and Firestore write, preventing race conditions without holding client-side crypto inside the transaction lifecycle.
+
+### Decision 8: Secret Input Vectors & Leak Prevention
+- **Context:** Secrets can be provided interactively or non-interactively in CI/CD pipelines and scripts.
+- **Decision:** Provide a unified `resolveSecretValue` helper with priority: stdin pipe > `--file` > `--value` > hidden prompt. When `--value` is used, emit a security warning to `stderr` advising against command-line arguments in shell history.
+
+### Decision 9: Push / Import Dry-Run & Fault Tolerance
+- **Context:** Spec §8.7 defines `scync push` for importing `.env` files into Scync.
+- **Decision:** Parse variables with `parseEnvFile`, infer services automatically, and provide `--dry-run` mode that compares with remote state without decrypting or modifying Firestore. In live mode, log each imported item and record ledger events with rollback safety.
+
+

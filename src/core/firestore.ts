@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore';
 import { getDb } from './firebase.js';
 import { encrypt, decrypt } from './crypto.js';
+import { ConflictError } from '../cli/errors.js';
 import type { 
   VaultMeta, BiometricMeta, SecretFormData, StoredSecret, DecryptedSecret, 
   Project, EncryptedField, CustomService, StoredSSHKey, StoredTOTP,
@@ -236,96 +237,123 @@ export async function updateSecret(
   formData: SecretFormData,
   previousSecret?: StoredSecret,
   explicitChangeType?: SecretChangeType,
-  dbOverride?: Firestore
+  dbOverride?: Firestore,
+  options?: { expectedVersion?: number; force?: boolean }
 ): Promise<void> {
   const db = dbOverride || getDb();
   const ref = doc(db, "users", uid, "secrets", id);
+  const ledgerColRef = collection(db, "users", uid, "ledger");
+  const ledgerDocRef = doc(ledgerColRef);
   
+  // Encrypt sensitive payloads before opening the transaction
   const encValue = await encrypt(key, formData.value);
   const encNotes = formData.notes ? await encrypt(key, formData.notes) : null;
 
-  const currentVersion = previousSecret?.version || 1;
-  let versions: SecretVersion[] = previousSecret?.versions ? [...previousSecret.versions] : [
-    {
-      version: currentVersion,
-      encValue: previousSecret?.encValue || encValue,
-      createdAt: previousSecret?.updatedAt || new Date(),
-      changeType: 'created',
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      throw new Error(`Secret with id '${id}' not found.`);
     }
-  ];
 
-  const isRotation = explicitChangeType === 'rotated' || (formData.lastRotated && formData.lastRotated.getTime() !== previousSecret?.lastRotated?.getTime());
-  const isRestored = explicitChangeType === 'restored';
-  
-  let changeType: SecretChangeType = 'updated';
-  if (isRestored) changeType = 'restored';
-  else if (isRotation) changeType = 'rotated';
+    const currentDoc = snap.data();
+    const actualVersion = currentDoc.version || 1;
 
-  const nextVersion = currentVersion + 1;
-  versions.push({
-    version: nextVersion,
-    encValue,
-    createdAt: new Date(),
-    changeType,
-  });
+    // Concurrency version check
+    if (options?.expectedVersion !== undefined && !options?.force) {
+      if (actualVersion !== options.expectedVersion) {
+        throw new ConflictError(formData.name, options.expectedVersion, actualVersion);
+      }
+    }
 
-  if (versions.length > 10) {
-    versions = versions.slice(versions.length - 10);
-  }
+    const currentVersion = actualVersion;
+    const rawVersions = Array.isArray(currentDoc.versions) ? currentDoc.versions : (previousSecret?.versions || []);
+    let versions: SecretVersion[] = rawVersions.length > 0 ? [...rawVersions] : [
+      {
+        version: currentVersion,
+        encValue: currentDoc.encValue || encValue,
+        createdAt: currentDoc.updatedAt?.toDate ? currentDoc.updatedAt.toDate() : new Date(),
+        changeType: 'created',
+      }
+    ];
 
-  const cleanVersions = versions.map(v => {
-    const item: Record<string, any> = {
-      version: v.version,
-      encValue: v.encValue,
-      createdAt: v.createdAt,
-      changeType: v.changeType || 'updated'
+    const isRotation = explicitChangeType === 'rotated' || (
+      formData.lastRotated && 
+      (!previousSecret?.lastRotated || formData.lastRotated.getTime() !== previousSecret.lastRotated.getTime())
+    );
+    const isRestored = explicitChangeType === 'restored';
+    
+    let changeType: SecretChangeType = 'updated';
+    if (isRestored) changeType = 'restored';
+    else if (isRotation) changeType = 'rotated';
+
+    const nextVersion = currentVersion + 1;
+    versions.push({
+      version: nextVersion,
+      encValue,
+      createdAt: new Date(),
+      changeType,
+    });
+
+    if (versions.length > 10) {
+      versions = versions.slice(versions.length - 10);
+    }
+
+    const cleanVersions = versions.map((v: any) => {
+      const item: Record<string, any> = {
+        version: v.version,
+        encValue: v.encValue,
+        createdAt: v.createdAt?.toDate ? v.createdAt.toDate() : (v.createdAt instanceof Date ? v.createdAt : new Date(v.createdAt)),
+        changeType: v.changeType || 'updated'
+      };
+      if (v.note !== undefined) {
+        item.note = v.note;
+      }
+      return item;
+    });
+
+    const updateData: Record<string, any> = {
+      name: formData.name,
+      service: formData.service,
+      type: formData.type,
+      environment: formData.environment,
+      status: formData.status,
+      encValue,
+      encNotes: encNotes ?? null,
+      lastRotated: formData.lastRotated ?? null,
+      expiresOn: formData.expiresOn ?? null,
+      projectId: formData.projectId || null,
+      remainingCodes: formData.remainingCodes || null,
+      version: nextVersion,
+      versions: cleanVersions,
+      updatedAt: serverTimestamp()
     };
-    if (v.note !== undefined) {
-      item.note = v.note;
-    }
-    return item;
+
+    tx.update(ref, updateData);
+
+    const ledgerAction: LedgerAction = changeType === 'rotated' 
+      ? 'secret_rotated' 
+      : changeType === 'restored' 
+      ? 'secret_restored' 
+      : 'secret_updated';
+
+    const actionTitle = changeType === 'rotated'
+      ? `Rotated ${formData.name}`
+      : changeType === 'restored'
+      ? `Restored ${formData.name} to v${nextVersion}`
+      : `Updated ${formData.name}`;
+
+    tx.set(ledgerDocRef, {
+      id: ledgerDocRef.id,
+      action: ledgerAction,
+      title: actionTitle,
+      details: `${formData.service} · v${nextVersion}`,
+      entityId: id,
+      entityName: formData.name,
+      service: formData.service,
+      version: nextVersion,
+      timestamp: serverTimestamp(),
+    });
   });
-
-  const updateData: Record<string, any> = {
-    name: formData.name,
-    service: formData.service,
-    type: formData.type,
-    environment: formData.environment,
-    status: formData.status,
-    encValue,
-    encNotes: encNotes ?? null,
-    lastRotated: formData.lastRotated ?? null,
-    expiresOn: formData.expiresOn ?? null,
-    projectId: formData.projectId || null,
-    remainingCodes: formData.remainingCodes || null,
-    version: nextVersion,
-    versions: cleanVersions,
-    updatedAt: serverTimestamp()
-  };
-
-  await updateDoc(ref, updateData);
-
-  const ledgerAction: LedgerAction = changeType === 'rotated' 
-    ? 'secret_rotated' 
-    : changeType === 'restored' 
-    ? 'secret_restored' 
-    : 'secret_updated';
-
-  const actionTitle = changeType === 'rotated'
-    ? `Rotated ${formData.name}`
-    : changeType === 'restored'
-    ? `Restored ${formData.name} to v${nextVersion}`
-    : `Updated ${formData.name}`;
-
-  await logLedgerEvent(uid, {
-    action: ledgerAction,
-    title: actionTitle,
-    details: `${formData.service} · v${nextVersion}`,
-    entityId: id,
-    entityName: formData.name,
-    service: formData.service,
-    version: nextVersion,
-  }, db);
 }
 
 export async function restoreSecretVersion(
