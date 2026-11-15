@@ -50,7 +50,11 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
         isClosed = true;
         clearTimeout(timeout);
         try {
+          if (typeof (server as any).closeAllConnections === 'function') {
+            (server as any).closeAllConnections();
+          }
           server.close();
+          server.unref();
         } catch (_) {}
       }
     };
@@ -95,7 +99,10 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           }
 
           // Return success response to browser
-          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.writeHead(200, {
+            'Content-Type': 'text/html',
+            'Connection': 'close'
+          });
           res.end(SUCCESS_HTML);
 
           safeClose();
