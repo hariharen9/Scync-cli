@@ -83,5 +83,23 @@ This log tracks architectural and design decisions made during the development o
 - **Context:** Spec §8.6 requires observing real-time changes across web and CLI edits.
 - **Decision:** Use Firestore's `onSnapshot` listener on the user's secrets collection, calculating local diffs (added, modified, deleted) against an in-memory cache to prove real-time sync with minimal read overhead.
 
+---
+
+## 2026-11-15: Phase 4 — Specialized Data Types & Polish
+
+### Decision 15: Specialized Data Type Commands Architecture
+- **Context:** Spec §8.8-§8.11 mandates tailored workflows for TOTP codes, SSH keys, login passwords, and TLS certificates.
+- **Decision:** Implement dedicated subcommands:
+  - `scync totp [name]`: Generates live RFC 6238 6-digit codes with remaining seconds indicator; supports `--copy` with 30s auto-clear.
+  - `scync ssh [ls|get|export|config]`: Manages SSH keys, prints public keys or fingerprints, exports private/public key pairs with restrictive permissions (`0600` / `0644`), and generates drop-in `~/.ssh/config` host blocks.
+  - `scync passwords [ls|get]`: Masked view of credentials (`••••••••`), `--reveal` flag for plaintext, `--copy` with 30s auto-clear.
+  - `scync certs [ls|show]`: X.509 certificate inspection, validity periods, expiry status, issuer, and SAN hostnames.
+- **Rationale:** Keeps high-frequency developer tasks fast and safe without manually grepping or parsing raw secret blobs.
+
+### Decision 16: Safe File Export & Mode Clamping
+- **Context:** Spec §8.9 mandates exporting SSH private keys with `0600` permissions.
+- **Decision:** In `scync ssh export`, write private keys with explicit `mode: 0o600` and public keys with `mode: 0o644`. On Windows platforms where POSIX modes are limited, rely on Node's filesystem permissions while ensuring the command warns if written to insecure directories.
+
+
 
 

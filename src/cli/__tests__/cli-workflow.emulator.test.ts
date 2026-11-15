@@ -48,10 +48,12 @@ describe('Phase 3 CLI Workflows: Run, Config, and Agent (Emulator Integration)',
     saveSession({
       uid,
       email,
+      displayName: 'Test User',
       providerId: 'password',
       refreshToken: 'fake-refresh-token',
-      accessToken: 'fake-access-token',
+      idToken: 'fake-id-token',
       expiresAt: Date.now() + 3600 * 1000,
+      savedAt: new Date().toISOString(),
     });
 
     // Derive key & initialize vault metadata
@@ -80,7 +82,7 @@ describe('Phase 3 CLI Workflows: Run, Config, and Agent (Emulator Integration)',
     await createSecret(uid, derivedKey, {
       name: 'PHASE3_DB_URL',
       service: 'Other',
-      type: 'Connection String',
+      type: 'Other',
       environment: 'Production',
       status: 'Active',
       value: 'postgres://omega_user:pass@db.example.com:5432/omega',

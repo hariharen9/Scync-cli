@@ -561,3 +561,180 @@ export function subscribeToLedger(
     onUpdate(entries);
   });
 }
+
+// ─── SSH Keys ───
+
+export async function getSSHKeys(uid: string, dbOverride?: Firestore): Promise<StoredSSHKey[]> {
+  const db = dbOverride || getDb();
+  const colRef = collection(db, "users", uid, "ssh_keys");
+  const snap = await getDocs(colRef);
+  return snap.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name,
+      type: data.type || 'ssh-rsa',
+      publicKey: data.publicKey,
+      fingerprint: data.fingerprint,
+      encPrivateKey: data.encPrivateKey,
+      hosts: Array.isArray(data.hosts) ? data.hosts : [],
+      rotationDate: data.rotationDate?.toDate ? data.rotationDate.toDate() : (data.rotationDate ? new Date(data.rotationDate) : null),
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
+    } as StoredSSHKey;
+  });
+}
+
+export async function createSSHKey(
+  uid: string,
+  keyOrSession: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField> },
+  data: {
+    name: string;
+    type: string;
+    publicKey: string;
+    fingerprint: string;
+    privateKey: string;
+    hosts?: string[];
+  },
+  dbOverride?: Firestore
+): Promise<string> {
+  const db = dbOverride || getDb();
+  const keysRef = collection(db, "users", uid, "ssh_keys");
+  const newRef = doc(keysRef);
+
+  const encFn = getEncryptFn(keyOrSession);
+  const encPrivateKey = await encFn(data.privateKey);
+
+  await setDoc(newRef, {
+    id: newRef.id,
+    name: data.name,
+    type: data.type,
+    publicKey: data.publicKey,
+    fingerprint: data.fingerprint,
+    encPrivateKey,
+    hosts: data.hosts || [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    rotationDate: null,
+  });
+
+  return newRef.id;
+}
+
+export async function deleteSSHKey(uid: string, id: string, dbOverride?: Firestore): Promise<void> {
+  const db = dbOverride || getDb();
+  await deleteDoc(doc(db, "users", uid, "ssh_keys", id));
+}
+
+// ─── TOTP Tokens ───
+
+export async function getTOTPTokens(uid: string, dbOverride?: Firestore): Promise<StoredTOTP[]> {
+  const db = dbOverride || getDb();
+  const colRef = collection(db, "users", uid, "totp_tokens");
+  const snap = await getDocs(colRef);
+  return snap.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      issuer: data.issuer || '',
+      label: data.label || '',
+      encSecret: data.encSecret,
+      algorithm: data.algorithm || 'SHA1',
+      digits: data.digits || 6,
+      period: data.period || 30,
+      icon: data.icon || '',
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
+    } as StoredTOTP;
+  });
+}
+
+export async function createTOTP(
+  uid: string,
+  keyOrSession: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField> },
+  data: {
+    issuer: string;
+    label: string;
+    secret: string;
+    algorithm?: 'SHA1' | 'SHA256' | 'SHA512';
+    digits?: 6 | 8;
+    period?: 30 | 60;
+  },
+  dbOverride?: Firestore
+): Promise<string> {
+  const db = dbOverride || getDb();
+  const tokensRef = collection(db, "users", uid, "totp_tokens");
+  const newRef = doc(tokensRef);
+
+  const encFn = getEncryptFn(keyOrSession);
+  const encSecret = await encFn(data.secret);
+
+  await setDoc(newRef, {
+    id: newRef.id,
+    issuer: data.issuer,
+    label: data.label,
+    encSecret,
+    algorithm: data.algorithm || 'SHA1',
+    digits: data.digits || 6,
+    period: data.period || 30,
+    icon: '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return newRef.id;
+}
+
+export async function deleteTOTP(uid: string, id: string, dbOverride?: Firestore): Promise<void> {
+  const db = dbOverride || getDb();
+  await deleteDoc(doc(db, "users", uid, "totp_tokens", id));
+}
+
+// ─── Passwords ───
+
+export async function getPasswords(uid: string, dbOverride?: Firestore): Promise<StoredPassword[]> {
+  const db = dbOverride || getDb();
+  const colRef = collection(db, "users", uid, "passwords");
+  const snap = await getDocs(colRef);
+  return snap.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name || data.title || '',
+      username: data.username || '',
+      url: data.url || '',
+      encPassword: data.encPassword,
+      encNotes: data.encNotes ?? null,
+      category: data.category || 'General',
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
+    } as StoredPassword;
+  });
+}
+
+// ─── Certificates ───
+
+export async function getCertificates(uid: string, dbOverride?: Firestore): Promise<StoredCertificate[]> {
+  const db = dbOverride || getDb();
+  const colRef = collection(db, "users", uid, "certificates");
+  const snap = await getDocs(colRef);
+  return snap.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name || '',
+      encCertPem: data.encCertPem,
+      encKeyPem: data.encKeyPem ?? null,
+      subject: data.subject || '',
+      issuer: data.issuer || '',
+      serialNumber: data.serialNumber || '',
+      validFrom: data.validFrom?.toDate ? data.validFrom.toDate() : (data.validFrom ? new Date(data.validFrom) : new Date()),
+      validTo: data.validTo?.toDate ? data.validTo.toDate() : (data.validTo ? new Date(data.validTo) : new Date()),
+      isSelfSigned: !!data.isSelfSigned,
+      fingerprint: data.fingerprint || '',
+      hosts: Array.isArray(data.hosts) ? data.hosts : [],
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
+    } as StoredCertificate;
+  });
+}

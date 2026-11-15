@@ -19,6 +19,10 @@ import { runCommand } from './commands/run.js';
 import { watchCommand } from './commands/watch.js';
 import { configCommand } from './commands/config.js';
 import { completionCommand } from './commands/completion.js';
+import { totpCommand } from './commands/totp.js';
+import { sshCommand } from './commands/ssh.js';
+import { passwordsCommand } from './commands/passwords.js';
+import { certsCommand } from './commands/certs.js';
 import { runAgentDaemon } from '../agent/server.js';
 import { CliError, ExitCode } from './errors.js';
 import pc from 'picocolors';
@@ -261,6 +265,51 @@ export function createProgram(): Command {
     .description('Generate shell autocompletion script (bash, zsh, fish, powershell)')
     .action(async (shell) => {
       await completionCommand(shell);
+    });
+
+  // --- Specialized Secret Types ---
+  program
+    .command('totp [name]')
+    .description('Generate or list TOTP two-factor authentication codes')
+    .option('-c, --copy', 'Copy generated code to clipboard (auto-clears in 30s)')
+    .option('--json', 'Output details as JSON')
+    .option('--no-agent', 'Do not use background agent')
+    .action(async (name, opts) => {
+      await totpCommand(name, opts);
+    });
+
+  program
+    .command('ssh [action] [name]')
+    .description('Manage vaulted SSH keys (ls, get, export, config)')
+    .option('--private', 'Retrieve or print private key')
+    .option('--dir <directory>', 'Target directory for exported keys (default: ~/.ssh)')
+    .option('--json', 'Output details as JSON')
+    .option('--no-agent', 'Do not use background agent')
+    .action(async (action, name, opts) => {
+      await sshCommand(action, name, opts);
+    });
+
+  program
+    .command('passwords [query]')
+    .alias('pass')
+    .description('Search and look up stored passwords (read-only)')
+    .option('-r, --reveal', 'Display plaintext password')
+    .option('-c, --copy', 'Copy password to clipboard (auto-clears in 30s)')
+    .option('--json', 'Output details as JSON')
+    .option('--no-agent', 'Do not use background agent')
+    .action(async (query, opts) => {
+      await passwordsCommand(query, opts);
+    });
+
+  program
+    .command('certs [query]')
+    .alias('certificates')
+    .description('Inspect vaulted SSL/TLS certificates (read-only)')
+    .option('--reveal-key', 'Decrypt and display private key PEM if stored')
+    .option('--json', 'Output details as JSON')
+    .option('--no-agent', 'Do not use background agent')
+    .action(async (query, opts) => {
+      await certsCommand(query, opts);
     });
 
   // --- Internal Daemon ---
