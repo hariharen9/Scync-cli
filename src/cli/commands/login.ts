@@ -37,11 +37,13 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     }
   } else {
     // Google OAuth Flow
-    const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || DEFAULT_CONFIG.appId || '';
+    const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
     if (!clientId) {
       console.log(pc.yellow('Notice: Google OAuth Client ID is not configured.'));
-      console.log('You can sign in with Email & Password using:');
-      console.log(pc.cyan('  scync login --email your-email@example.com\n'));
+      console.log('For Google browser sign-in, add your OAuth 2.0 Client ID (from Google Cloud Console > Credentials) to .env.local:');
+      console.log(pc.dim('  SCYNC_GOOGLE_CLIENT_ID=xxxxxx.apps.googleusercontent.com\n'));
+      console.log('Alternatively, sign in with Email & Password:');
+      console.log(pc.cyan('  node bin/scync.js login --email <your-email>\n'));
       
       const email = await promptText('Enter your email to sign in: ');
       if (!email) return;
