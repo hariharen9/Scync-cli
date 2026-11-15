@@ -38,6 +38,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
   } else {
     // Google OAuth Flow
     const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+    const clientSecret = process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
     if (!clientId) {
       console.log(pc.yellow('Notice: Google OAuth Client ID is not configured.'));
       console.log('For Google browser sign-in, add your OAuth 2.0 Client ID (from Google Cloud Console > Credentials) to .env.local:');
@@ -54,6 +55,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     try {
       const tokens = await loginWithGoogleLoopback({
         clientId,
+        clientSecret,
         openBrowser: !options.noBrowser,
         port: options.port ? parseInt(options.port, 10) : undefined
       });

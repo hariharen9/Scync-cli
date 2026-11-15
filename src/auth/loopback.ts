@@ -37,13 +37,26 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 
 export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OAuthTokens> {
   const state = crypto.randomBytes(16).toString('hex');
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
   const preferredPort = opts.port || 8234;
 
   return new Promise((resolve, reject) => {
     let server: http.Server;
+    let isClosed = false;
+
+    const safeClose = () => {
+      if (!isClosed) {
+        isClosed = true;
+        clearTimeout(timeout);
+        try {
+          server.close();
+        } catch (_) {}
+      }
+    };
 
     const timeout = setTimeout(() => {
-      server.close();
+      safeClose();
       reject(new Error('Authentication timed out after 120 seconds.'));
     }, 120_000);
 
@@ -60,8 +73,7 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/plain' });
             res.end(`Authentication error: ${error}`);
-            clearTimeout(timeout);
-            server.close();
+            safeClose();
             reject(new Error(`OAuth error: ${error}`));
             return;
           }
@@ -69,8 +81,7 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           if (returnedState !== state) {
             res.writeHead(400, { 'Content-Type': 'text/plain' });
             res.end('State mismatch error.');
-            clearTimeout(timeout);
-            server.close();
+            safeClose();
             reject(new Error('OAuth state mismatch. Potential CSRF detected.'));
             return;
           }
@@ -78,8 +89,7 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           if (!code) {
             res.writeHead(400, { 'Content-Type': 'text/plain' });
             res.end('Missing authorization code.');
-            clearTimeout(timeout);
-            server.close();
+            safeClose();
             reject(new Error('Missing authorization code in callback.'));
             return;
           }
@@ -88,24 +98,29 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(SUCCESS_HTML);
 
-          clearTimeout(timeout);
-          server.close();
+          safeClose();
 
           // Exchange authorization code for tokens
           const address = server.address();
           const port = typeof address === 'object' && address ? address.port : preferredPort;
           const redirectUri = `http://127.0.0.1:${port}/callback`;
 
+          const bodyParams: Record<string, string> = {
+            code,
+            client_id: opts.clientId,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code',
+            code_verifier: codeVerifier
+          };
+
+          if (opts.clientSecret) {
+            bodyParams.client_secret = opts.clientSecret;
+          }
+
           const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              code,
-              client_id: opts.clientId,
-              client_secret: opts.clientSecret || '',
-              redirect_uri: redirectUri,
-              grant_type: 'authorization_code'
-            }).toString()
+            body: new URLSearchParams(bodyParams).toString()
           });
 
           if (!tokenRes.ok) {
@@ -125,8 +140,7 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
           });
         }
       } catch (err) {
-        clearTimeout(timeout);
-        server.close();
+        safeClose();
         reject(err);
       }
     });
@@ -142,6 +156,8 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('scope', 'openid email profile');
       authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
       authUrl.searchParams.set('prompt', 'select_account');
 
       const urlString = authUrl.toString();
@@ -160,11 +176,11 @@ export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OA
     });
 
     server.on('error', (err: any) => {
-      clearTimeout(timeout);
       if (err.code === 'EADDRINUSE' && preferredPort !== 0) {
         // Try ephemeral port if preferred is taken
         server.listen(0, '127.0.0.1');
       } else {
+        safeClose();
         reject(err);
       }
     });
