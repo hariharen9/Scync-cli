@@ -1,0 +1,85 @@
+import type { UserCredential, User } from 'firebase/auth';
+import { loadSession, saveSession, clearSession, type StoredSession } from './storage.js';
+import { DEFAULT_CONFIG } from '../core/firebase.js';
+
+export class AuthExpiredError extends Error {
+  constructor(message = "Session expired or revoked. Please run 'scync login'.") {
+    super(message);
+    this.name = 'AuthExpiredError';
+  }
+}
+
+export async function createSessionFromUser(user: User, providerId: 'google.com' | 'password'): Promise<StoredSession> {
+  const tokenResult = await user.getIdTokenResult();
+  const session: StoredSession = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    refreshToken: user.refreshToken,
+    idToken: tokenResult.token,
+    expiresAt: new Date(tokenResult.expirationTime).getTime(),
+    providerId,
+    savedAt: new Date().toISOString()
+  };
+
+  saveSession(session);
+  return session;
+}
+
+export async function refreshSessionToken(session: StoredSession, apiKey = DEFAULT_CONFIG.apiKey): Promise<StoredSession> {
+  const useEmulators = DEFAULT_CONFIG.useEmulators;
+  const tokenEndpoint = useEmulators
+    ? `${DEFAULT_CONFIG.authEmulatorUrl}/securetoken.googleapis.com/v1/token?key=${apiKey}`
+    : `https://securetoken.googleapis.com/v1/token?key=${apiKey}`;
+
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: session.refreshToken
+  });
+
+  const res = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  });
+
+  if (!res.ok) {
+    clearSession();
+    throw new AuthExpiredError();
+  }
+
+  const data = await res.json() as {
+    access_token: string;
+    id_token: string;
+    refresh_token: string;
+    expires_in: string;
+  };
+
+  const updatedSession: StoredSession = {
+    ...session,
+    idToken: data.id_token,
+    refreshToken: data.refresh_token,
+    expiresAt: Date.now() + (Number(data.expires_in) * 1000),
+    savedAt: new Date().toISOString()
+  };
+
+  saveSession(updatedSession);
+  return updatedSession;
+}
+
+export async function getValidSession(): Promise<StoredSession | null> {
+  const session = loadSession();
+  if (!session) return null;
+
+  // If token is about to expire within 2 minutes, refresh it
+  if (Date.now() > session.expiresAt - 120_000) {
+    try {
+      return await refreshSessionToken(session);
+    } catch (err) {
+      if (err instanceof AuthExpiredError) return null;
+      throw err;
+    }
+  }
+
+  return session;
+}
