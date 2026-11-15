@@ -1,4 +1,5 @@
 import { clearSession, loadSession } from '../../auth/storage.js';
+import { clearAuthState } from '../../auth/persistence.js';
 import { AgentClient } from '../../agent/client.js';
 import pc from 'picocolors';
 
@@ -13,6 +14,7 @@ export async function logoutCommand(): Promise<void> {
     }
   }
   clearSession();
+  clearAuthState();
   if (session) {
     console.log(pc.green(`✓ Successfully logged out from ${session.email || session.uid}. Vault locked.`));
   } else {

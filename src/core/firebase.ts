@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, initializeAuth, type Auth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, type Firestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { FilePersistence } from '../auth/persistence.js';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -70,7 +71,15 @@ export function initFirebase(config: Partial<FirebaseClientConfig> = {}): {
       })
     : getApp();
 
-  const auth = getAuth(app);
+  let auth: Auth;
+  try {
+    auth = initializeAuth(app, {
+      persistence: [FilePersistence as any]
+    });
+  } catch (_) {
+    auth = getAuth(app);
+  }
+
   const db = getFirestore(app);
 
   if (merged.useEmulators) {
@@ -105,4 +114,12 @@ export function getAuthInstance(): Auth {
     return initFirebase().auth;
   }
   return currentAuth;
+}
+
+export async function ensureAuthReady(): Promise<Auth> {
+  const auth = getAuthInstance();
+  if (typeof (auth as any).authStateReady === 'function') {
+    await (auth as any).authStateReady();
+  }
+  return auth;
 }
