@@ -26,30 +26,18 @@ export function readClipboard(): string {
 export function writeClipboard(text: string): boolean {
   try {
     if (process.platform === 'win32') {
-      const child = spawn('powershell', ['-NoProfile', '-Command', '$Input | Set-Clipboard'], {
-        stdio: ['pipe', 'ignore', 'ignore']
-      });
-      child.stdin.write(text);
-      child.stdin.end();
-      return true;
+      const res = spawnSync('clip', [], { input: text, encoding: 'utf8' });
+      return res.status === 0;
     } else if (process.platform === 'darwin') {
-      const child = spawn('pbcopy', [], { stdio: ['pipe', 'ignore', 'ignore'] });
-      child.stdin.write(text);
-      child.stdin.end();
-      return true;
+      const res = spawnSync('pbcopy', [], { input: text, encoding: 'utf8' });
+      return res.status === 0;
     } else {
       // Linux
-      const child = spawn('xclip', ['-selection', 'clipboard'], { stdio: ['pipe', 'ignore', 'ignore'] });
-      child.on('error', () => {
-        try {
-          const wlChild = spawn('wl-copy', [], { stdio: ['pipe', 'ignore', 'ignore'] });
-          wlChild.stdin.write(text);
-          wlChild.stdin.end();
-        } catch {}
-      });
-      child.stdin.write(text);
-      child.stdin.end();
-      return true;
+      let res = spawnSync('xclip', ['-selection', 'clipboard'], { input: text, encoding: 'utf8' });
+      if (res.error || res.status !== 0) {
+        res = spawnSync('wl-copy', [], { input: text, encoding: 'utf8' });
+      }
+      return res.status === 0;
     }
   } catch {
     return false;
@@ -82,13 +70,11 @@ export function copyWithAutoClear(text: string, timeoutSecs = 30): boolean {
       
       function clear() {
         if (platform === 'win32') {
-          const c = spawn('powershell', ['-NoProfile', '-Command', 'Set-Clipboard -Value \"\"'], { stdio: 'ignore' });
+          spawnSync('clip', [], { input: '' });
         } else if (platform === 'darwin') {
-          const c = spawn('pbcopy', [], { stdio: ['pipe', 'ignore', 'ignore'] });
-          c.stdin.end();
+          spawnSync('pbcopy', [], { input: '' });
         } else {
-          const c = spawn('xclip', ['-selection', 'clipboard'], { stdio: ['pipe', 'ignore', 'ignore'] });
-          c.stdin.end();
+          spawnSync('xclip', ['-selection', 'clipboard'], { input: '' });
         }
       }
 

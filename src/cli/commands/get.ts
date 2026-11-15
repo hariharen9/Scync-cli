@@ -62,9 +62,17 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
   const vault = await unlockVault(session.uid, db);
   const decrypted = await decryptSecret(vault, target);
 
-  // 3. Handle Pipe / Raw output
-  const isPipe = !process.stdout.isTTY || options.raw;
+  // 3. Handle Clipboard copy if requested
+  if (options.copy) {
+    const copied = copyWithAutoClear(decrypted.value, 30);
+    if (copied) {
+      console.error(pc.green(`✓ Copied value of '${sanitizeTerminalOutput(target.name)}' to clipboard. Clipboard will auto-clear in 30s.`));
+    } else {
+      console.error(pc.yellow('Failed to write to system clipboard.'));
+    }
+  }
 
+  // 4. Handle JSON output
   if (options.json) {
     console.log(JSON.stringify({
       id: decrypted.id,
@@ -80,23 +88,15 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
     return;
   }
 
-  if (isPipe) {
+  // 5. Handle Pipe / Raw output
+  const isPipe = !process.stdout.isTTY || options.raw;
+  if (isPipe && !options.reveal) {
     // Clean raw output with NO decoration or trailing newline
     process.stdout.write(decrypted.value);
     return;
   }
 
-  // 4. Handle Clipboard copy
-  if (options.copy) {
-    const copied = copyWithAutoClear(decrypted.value, 30);
-    if (copied) {
-      console.error(pc.green(`✓ Copied '${sanitizeTerminalOutput(target.name)}' to clipboard. Clipboard will auto-clear in 30s.`));
-    } else {
-      console.error(pc.yellow('Failed to write to system clipboard.'));
-    }
-  }
-
-  // 5. Human Terminal Output
+  // 6. Human Terminal Output
   if (options.reveal) {
     console.log(decrypted.value);
   } else if (!options.copy) {
