@@ -60,7 +60,7 @@ export async function pullCommand(options: PullOptions): Promise<void> {
   }
 
   // Unlock and decrypt
-  const { key } = await unlockVault(session.uid, db);
+  const vault = await unlockVault(session.uid, db);
 
   const lines: string[] = [
     `# Exported from Scync (${new Date().toISOString()})`,
@@ -73,7 +73,7 @@ export async function pullCommand(options: PullOptions): Promise<void> {
   secrets.sort((a, b) => a.name.localeCompare(b.name));
 
   for (const s of secrets) {
-    const decrypted = await decryptSecret(key, s);
+    const decrypted = await decryptSecret(vault, s);
     lines.push(formatEnvLine(s.name, decrypted.value));
   }
 

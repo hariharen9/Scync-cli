@@ -64,9 +64,9 @@ export async function restoreCommand(name: string, versionArg: string, options: 
     );
   }
 
-  const { key } = await unlockVault(session.uid, db);
+  const vault = await unlockVault(session.uid, db);
 
-  await restoreSecretVersion(session.uid, key, target.id, targetVerNum, target, db);
+  await restoreSecretVersion(session.uid, vault, target.id, targetVerNum, target, db);
 
   const nextVer = (target.version || 1) + 1;
   console.log(pc.green(`✓ Successfully restored '${target.name}' from v${targetVerNum} (now at v${nextVer})`));

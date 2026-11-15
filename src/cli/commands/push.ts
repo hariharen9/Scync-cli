@@ -90,7 +90,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
   }
 
   // 4. Real Import
-  const { key } = await unlockVault(session.uid, db);
+  const vault = await unlockVault(session.uid, db);
 
   let createdCount = 0;
   let updatedCount = 0;
@@ -110,7 +110,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
     if (!match) {
       // Create new secret
       try {
-        await createSecret(session.uid, key, {
+        await createSecret(session.uid, vault, {
           name: item.key,
           service: srv,
           type: secType,
@@ -134,7 +134,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
       try {
         await updateSecret(
           session.uid,
-          key,
+          vault,
           match.id,
           {
             name: match.name,

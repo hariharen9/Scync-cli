@@ -3,6 +3,8 @@ import { loginCommand } from './commands/login.js';
 import { logoutCommand } from './commands/logout.js';
 import { whoamiCommand } from './commands/whoami.js';
 import { statusCommand } from './commands/status.js';
+import { unlockCommand } from './commands/unlock.js';
+import { lockCommand } from './commands/lock.js';
 import { lsCommand } from './commands/ls.js';
 import { getCommand } from './commands/get.js';
 import { showCommand } from './commands/show.js';
@@ -13,6 +15,11 @@ import { rotateCommand } from './commands/rotate.js';
 import { restoreCommand } from './commands/restore.js';
 import { rmCommand } from './commands/rm.js';
 import { pushCommand } from './commands/push.js';
+import { runCommand } from './commands/run.js';
+import { watchCommand } from './commands/watch.js';
+import { configCommand } from './commands/config.js';
+import { completionCommand } from './commands/completion.js';
+import { runAgentDaemon } from '../agent/server.js';
 import { CliError, ExitCode } from './errors.js';
 import pc from 'picocolors';
 
@@ -22,7 +29,8 @@ export function createProgram(): Command {
   program
     .name('scync')
     .description('Zero-knowledge developer secrets manager CLI')
-    .version('0.1.0');
+    .version('0.1.0')
+    .enablePositionalOptions();
 
   // --- Auth Commands ---
   program
@@ -56,6 +64,23 @@ export function createProgram(): Command {
     .option('--json', 'Output details as JSON')
     .action(async (opts) => {
       await statusCommand(opts);
+    });
+
+  // --- Key Custody & Agent ---
+  program
+    .command('unlock')
+    .description('Unlock vault with master password and start background key agent')
+    .option('--timeout <duration>', 'Idle timeout duration (e.g. 15m, 1h, default: 15m)')
+    .option('--no-agent', 'Verify password in-process without launching background agent')
+    .action(async (opts) => {
+      await unlockCommand(opts);
+    });
+
+  program
+    .command('lock')
+    .description('Lock vault and terminate background agent key custody')
+    .action(async () => {
+      await lockCommand();
     });
 
   // --- Secret Read Commands ---
@@ -196,6 +221,58 @@ export function createProgram(): Command {
     .option('--dry-run', 'Preview changes without modifying the vault')
     .action(async (file, opts) => {
       await pushCommand(file, opts);
+    });
+
+  // --- Process & Sync Workflows ---
+  program
+    .command('run [cmd...]')
+    .description('Run a command with secrets injected into its environment without writing to disk')
+    .option('-p, --project <project>', 'Filter secrets by project')
+    .option('-e, --env <environment>', 'Filter secrets by environment (Development, Staging, Production, Testing)')
+    .option('--service <service>', 'Filter secrets by service')
+    .option('--no-agent', 'Do not use background agent for key custody')
+    .passThroughOptions()
+    .action(async (cmd, opts) => {
+      await runCommand(cmd, opts);
+    });
+
+  program
+    .command('watch')
+    .description('Stream real-time updates when secrets are added, modified, or removed')
+    .option('-p, --project <project>', 'Filter by project')
+    .option('-e, --env <environment>', 'Filter by environment')
+    .option('--service <service>', 'Filter by service')
+    .option('--reveal', 'Decrypt and show plaintext values on change')
+    .option('--no-agent', 'Do not use background agent')
+    .action(async (opts) => {
+      await watchCommand(opts);
+    });
+
+  // --- Configuration & Shell ---
+  program
+    .command('config [action] [key] [value]')
+    .description('Manage local CLI configuration (list, get, set, unset)')
+    .action(async (action, key, value) => {
+      await configCommand(action, key, value);
+    });
+
+  program
+    .command('completion [shell]')
+    .description('Generate shell autocompletion script (bash, zsh, fish, powershell)')
+    .action(async (shell) => {
+      await completionCommand(shell);
+    });
+
+  // --- Internal Daemon ---
+  program
+    .command('_agent-daemon', { hidden: true })
+    .option('--uid <uid>', 'User ID')
+    .option('--timeout <ms>', 'Idle timeout ms')
+    .action(async (opts) => {
+      await runAgentDaemon({
+        uid: opts.uid,
+        idleTimeoutMs: opts.timeout ? parseInt(opts.timeout, 10) : undefined,
+      });
     });
 
   return program;

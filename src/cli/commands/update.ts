@@ -55,7 +55,7 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   }
 
   const target = matches[0];
-  const { key } = await unlockVault(session.uid, db);
+  const vault = await unlockVault(session.uid, db);
 
   // Determine new value: if passed or piped, use it; otherwise decrypt existing
   let value: string;
@@ -64,7 +64,7 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   if (hasNewValue) {
     value = await readSecretValueInput(name, options, `New secret value for ${name}: `);
   } else {
-    const dec = await decryptSecret(key, target);
+    const dec = await decryptSecret(vault, target);
     value = dec.value;
   }
 
@@ -73,7 +73,7 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   if (options.notes !== undefined) {
     notes = options.notes;
   } else if (target.encNotes) {
-    const dec = await decryptSecret(key, target);
+    const dec = await decryptSecret(vault, target);
     notes = dec.notes;
   } else {
     notes = '';
@@ -109,7 +109,7 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
 
   await updateSecret(
     session.uid,
-    key,
+    vault,
     target.id,
     {
       name: target.name,

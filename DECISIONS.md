@@ -55,4 +55,33 @@ This log tracks architectural and design decisions made during the development o
 - **Context:** Spec §8.7 defines `scync push` for importing `.env` files into Scync.
 - **Decision:** Parse variables with `parseEnvFile`, infer services automatically, and provide `--dry-run` mode that compares with remote state without decrypting or modifying Firestore. In live mode, log each imported item and record ledger events with rollback safety.
 
+---
+
+## 2026-11-15: Phase 3 — Agent, Key Custody, Process Injection & Watch
+
+### Decision 10: Local Agent IPC Transport & OS User Isolation
+- **Context:** Spec §8.2 mandates a short-lived local background agent (in the style of `ssh-agent`) holding unlocked keys in memory across short CLI invocations, compatible with Windows, macOS, and Linux.
+- **Decision:** Use native Node `net` module with platform-specific secure endpoints:
+  - Windows: Named Pipe (`\\.\pipe\scync-agent-<uid or username>`), secured by Windows user access control tokens.
+  - POSIX: Unix Domain Socket (`~/.scync/agent-<uid>.sock`), created with directory permissions `0700` and socket mode `0600`.
+- **Rationale:** Native OS IPC avoids any external native dependencies, executes in sub-millisecond roundtrips, and prevents cross-user access on multi-user systems.
+
+### Decision 11: Remote Agent Crypto vs Key Exposure
+- **Context:** Spec §8.2 asks to decide whether the agent hands out key material or performs crypto on behalf of clients, preferring the design that exposes the least.
+- **Decision:** The agent performs encryption, decryption, and batch decryption directly inside its process memory. The native non-extractable WebCrypto `CryptoKey` never leaves the agent's memory and is never transmitted over IPC.
+- **Rationale:** If any client CLI command or subshell is compromised, the attacker cannot dump the master key. Client processes interact solely via `ENCRYPT`, `DECRYPT`, and high-throughput `BATCH_DECRYPT` messages.
+
+### Decision 12: In-Memory Key Eviction & Idle Timeouts
+- **Context:** Spec §8.2 requires configurable idle timeouts, max lifetimes, explicit locking, and logout eviction.
+- **Decision:** Default idle timeout is 15 minutes (configurable via `scync config set agent.timeout <duration>`), refreshed upon every crypto operation. Absolute maximum lifetime is 8 hours. On timeout, explicit `scync lock`, or `scync logout`, the agent zeroes all key references, closes the socket, and terminates.
+
+### Decision 13: Direct Subprocess Injection (`scync run`)
+- **Context:** Spec §8.7 requires running commands with secrets injected into their environment without writing plaintext files to disk.
+- **Decision:** Secrets matching the project/environment filter are decrypted directly into memory and passed as the `env` dictionary to `child_process.spawn`. Signals (`SIGINT`, `SIGTERM`) and exit codes are forwarded 1:1. Executables are invoked directly without wrapping in shell interpreters unless explicitly a `.cmd`/`.bat` script, avoiding shell-history and command-line leaking.
+
+### Decision 14: Real-Time Firestore Sync Stream (`scync watch`)
+- **Context:** Spec §8.6 requires observing real-time changes across web and CLI edits.
+- **Decision:** Use Firestore's `onSnapshot` listener on the user's secrets collection, calculating local diffs (added, modified, deleted) against an in-memory cache to prove real-time sync with minimal read overhead.
+
+
 

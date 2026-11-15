@@ -59,8 +59,8 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
   const target = matches[0];
 
   // 2. Unlock vault and decrypt
-  const { key } = await unlockVault(session.uid, db);
-  const decrypted = await decryptSecret(key, target);
+  const vault = await unlockVault(session.uid, db);
+  const decrypted = await decryptSecret(vault, target);
 
   // 3. Handle Pipe / Raw output
   const isPipe = !process.stdout.isTTY || options.raw;

@@ -91,9 +91,9 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
     }
   }
 
-  const { key } = await unlockVault(session.uid, db);
+  const vault = await unlockVault(session.uid, db);
 
-  const created = await createSecret(session.uid, key, {
+  const created = await createSecret(session.uid, vault, {
     name,
     service,
     type,

@@ -54,8 +54,8 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
   const target = matches[0];
 
   // Unlock and decrypt
-  const { key } = await unlockVault(session.uid, db);
-  const decrypted = await decryptSecret(key, target);
+  const vault = await unlockVault(session.uid, db);
+  const decrypted = await decryptSecret(vault, target);
 
   if (options.json) {
     console.log(JSON.stringify({

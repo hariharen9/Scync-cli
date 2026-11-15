@@ -54,15 +54,15 @@ export async function rotateCommand(name: string, options: RotateOptions): Promi
     throw new CliError('Rotated secret value cannot be empty.', ExitCode.GENERAL_ERROR);
   }
 
-  const { key } = await unlockVault(session.uid, db);
-  const decrypted = await decryptSecret(key, target);
+  const vault = await unlockVault(session.uid, db);
+  const decrypted = await decryptSecret(vault, target);
 
   const rotationDate = new Date();
   const expectedVersion = target.version || 1;
 
   await updateSecret(
     session.uid,
-    key,
+    vault,
     target.id,
     {
       name: target.name,

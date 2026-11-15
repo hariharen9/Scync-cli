@@ -1,6 +1,7 @@
 import { getValidSession } from '../../auth/session.js';
 import { getVaultMeta } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
+import { AgentClient } from '../../agent/client.js';
 import { AuthRequiredError } from '../errors.js';
 import pc from 'picocolors';
 
@@ -20,6 +21,8 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
   const db = getDb();
   const meta = await getVaultMeta(session.uid, db);
+  const agentClient = new AgentClient(session.uid);
+  const agentStatus = await agentClient.getStatus(500);
 
   if (options.json) {
     console.log(JSON.stringify({
@@ -29,7 +32,12 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
       vaultInitialized: meta !== null,
       vaultCreatedAt: meta ? meta.createdAt.toISOString() : null,
       biometricsCount: meta?.biometrics?.length || 0,
-      hasRecoveryKit: !!meta?.recovery
+      hasRecoveryKit: !!meta?.recovery,
+      agent: {
+        status: agentStatus?.status || 'locked',
+        ttlRemainingMs: agentStatus?.ttlRemainingMs,
+        pid: agentStatus?.pid,
+      }
     }, null, 2));
     return;
   }
@@ -41,5 +49,12 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     console.log(`Created:          ${meta.createdAt.toLocaleDateString()}`);
     console.log(`Biometric Devices:${meta.biometrics?.length ? ` ${meta.biometrics.length} registered` : ' None'}`);
     console.log(`Emergency Kit:    ${meta.recovery ? pc.green('Active') : pc.dim('Not configured')}`);
+  }
+
+  if (agentStatus && agentStatus.status === 'unlocked') {
+    const remainingMins = Math.ceil((agentStatus.ttlRemainingMs || 0) / 60000);
+    console.log(`Agent Status:     ${pc.green(`Unlocked (${remainingMins}m TTL remaining, PID: ${agentStatus.pid})`)}`);
+  } else {
+    console.log(`Agent Status:     ${pc.dim('Locked / Inactive')}`);
   }
 }

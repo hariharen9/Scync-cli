@@ -168,9 +168,23 @@ export async function changeVaultPassword(
 
 // ─── Secrets CRUD ───
 
+function getEncryptFn(keyOrSession: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField> }) {
+  if (typeof (keyOrSession as any).encrypt === 'function') {
+    return (pt: string) => (keyOrSession as any).encrypt(pt);
+  }
+  return (pt: string) => encrypt(keyOrSession as CryptoKey, pt);
+}
+
+function getDecryptFn(keyOrSession: CryptoKey | { decrypt: (ct: EncryptedField) => Promise<string> }) {
+  if (typeof (keyOrSession as any).decrypt === 'function') {
+    return (ct: EncryptedField) => (keyOrSession as any).decrypt(ct);
+  }
+  return (ct: EncryptedField) => decrypt(keyOrSession as CryptoKey, ct);
+}
+
 export async function createSecret(
   uid: string, 
-  key: CryptoKey, 
+  key: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField> }, 
   formData: SecretFormData,
   dbOverride?: Firestore
 ): Promise<StoredSecret> {
@@ -178,8 +192,9 @@ export async function createSecret(
   const secretsRef = collection(db, "users", uid, "secrets");
   const newRef = doc(secretsRef);
   
-  const encValue = await encrypt(key, formData.value);
-  const encNotes = formData.notes ? await encrypt(key, formData.notes) : null;
+  const encFn = getEncryptFn(key);
+  const encValue = await encFn(formData.value);
+  const encNotes = formData.notes ? await encFn(formData.notes) : null;
 
   const initialVersion: SecretVersion = {
     version: 1,
@@ -232,7 +247,7 @@ export async function createSecret(
 
 export async function updateSecret(
   uid: string, 
-  key: CryptoKey, 
+  key: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField> }, 
   id: string, 
   formData: SecretFormData,
   previousSecret?: StoredSecret,
@@ -246,8 +261,9 @@ export async function updateSecret(
   const ledgerDocRef = doc(ledgerColRef);
   
   // Encrypt sensitive payloads before opening the transaction
-  const encValue = await encrypt(key, formData.value);
-  const encNotes = formData.notes ? await encrypt(key, formData.notes) : null;
+  const encFn = getEncryptFn(key);
+  const encValue = await encFn(formData.value);
+  const encNotes = formData.notes ? await encFn(formData.notes) : null;
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -358,7 +374,7 @@ export async function updateSecret(
 
 export async function restoreSecretVersion(
   uid: string,
-  key: CryptoKey,
+  key: CryptoKey | { encrypt: (pt: string) => Promise<EncryptedField>; decrypt: (ct: EncryptedField) => Promise<string> },
   secretId: string,
   targetVersionNumber: number,
   storedSecret: StoredSecret,
@@ -367,8 +383,9 @@ export async function restoreSecretVersion(
   const targetVer = storedSecret.versions?.find(v => v.version === targetVersionNumber);
   if (!targetVer) throw new Error(`Version ${targetVersionNumber} not found`);
 
-  const plainValue = await decrypt(key, targetVer.encValue);
-  const plainNotes = storedSecret.encNotes ? await decrypt(key, storedSecret.encNotes) : "";
+  const decFn = getDecryptFn(key);
+  const plainValue = await decFn(targetVer.encValue);
+  const plainNotes = storedSecret.encNotes ? await decFn(storedSecret.encNotes) : "";
 
   const formData: SecretFormData = {
     name: storedSecret.name,
@@ -473,11 +490,13 @@ export function subscribeToSecrets(
 }
 
 export async function decryptSecret(
-  key: CryptoKey, 
+  keyOrSession: CryptoKey | { decrypt: (ct: EncryptedField) => Promise<string> }, 
   stored: StoredSecret
 ): Promise<DecryptedSecret> {
-  const value = await decrypt(key, stored.encValue);
-  const notes = stored.encNotes ? await decrypt(key, stored.encNotes) : "";
+  const decFn = getDecryptFn(keyOrSession);
+
+  const value = await decFn(stored.encValue);
+  const notes = stored.encNotes ? await decFn(stored.encNotes) : "";
   
   const { encValue, encNotes, ...rest } = stored;
   
