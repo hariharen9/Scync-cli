@@ -1,17 +1,64 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { getValidSession } from '../../auth/session.js';
 import { getDb } from '../../core/firebase.js';
-import { getSecrets } from '../../core/firestore.js';
+import { getSecrets, resolveProjectId } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { loadConfig } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import type { Environment } from '../../core/types.js';
+import pc from 'picocolors';
 
 export interface RunOptions {
   project?: string;
   env?: string;
   service?: string;
   noAgent?: boolean;
+}
+
+const PROTECTED_ENV_VARS = new Set([
+  'PATH',
+  'SYSTEMROOT',
+  'WINDIR',
+  'COMSPEC',
+  'PATHEXT',
+  'TEMP',
+  'TMP',
+  'USERPROFILE',
+  'HOME',
+  'SHELL',
+  'TERM',
+]);
+
+function resolveBinary(binary: string): { executable: string; useShell: boolean } {
+  if (process.platform !== 'win32') {
+    return { executable: binary, useShell: false };
+  }
+  const ext = path.extname(binary).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') {
+    return { executable: binary, useShell: true };
+  }
+  if (ext === '.exe') {
+    return { executable: binary, useShell: false };
+  }
+
+  // Look up PATH and PATHEXT on Windows
+  const pathExts = (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').map(e => e.toLowerCase());
+  const pathDirs = (process.env.PATH || '').split(path.delimiter);
+
+  for (const dir of pathDirs) {
+    for (const pe of pathExts) {
+      const candidate = path.join(dir, binary + pe);
+      try {
+        if (fs.existsSync(candidate)) {
+          const isShell = pe === '.cmd' || pe === '.bat';
+          return { executable: candidate, useShell: isShell };
+        }
+      } catch {}
+    }
+  }
+  return { executable: binary, useShell: false };
 }
 
 export async function runCommand(cmdArgs: string[], options: RunOptions = {}): Promise<void> {
@@ -28,16 +75,19 @@ export async function runCommand(cmdArgs: string[], options: RunOptions = {}): P
   }
 
   const config = loadConfig();
-  const project = options.project || config['default.project'];
+  const rawProject = options.project || config['default.project'];
   const env = options.env || config['default.env'];
 
   const db = getDb();
   let secrets = await getSecrets(session.uid, db);
-  if (project) {
-    secrets = secrets.filter((s) => s.projectId === project);
+
+  if (rawProject) {
+    const resolvedProj = await resolveProjectId(session.uid, rawProject, db);
+    const p = resolvedProj.toLowerCase();
+    secrets = secrets.filter((s) => s.projectId?.toLowerCase() === p);
   }
   if (env) {
-    secrets = secrets.filter((s) => s.environment === (env as Environment));
+    secrets = secrets.filter((s) => s.environment.toLowerCase() === (env as string).toLowerCase());
   }
   if (options.service) {
     secrets = secrets.filter((s) => s.service.toLowerCase() === options.service!.toLowerCase());
@@ -53,15 +103,21 @@ export async function runCommand(cmdArgs: string[], options: RunOptions = {}): P
   for (const secret of secrets) {
     if (secret.status === 'Active') {
       try {
-        injectedEnv[secret.name] = await vault.decrypt(secret.encValue);
-      } catch {
-        // Skip un-decryptable or corrupted items
+        const val = await vault.decrypt(secret.encValue);
+        const upper = secret.name.toUpperCase();
+        if (PROTECTED_ENV_VARS.has(upper)) {
+          console.error(pc.yellow(`⚠️  Warning: Secret '${secret.name}' collides with critical system variable '${upper}'. Skipping injection to protect environment.`));
+        } else {
+          injectedEnv[secret.name] = val;
+        }
+      } catch (err: any) {
+        console.error(pc.yellow(`⚠️  Warning: Failed to decrypt secret '${secret.name}': ${err.message}`));
       }
     }
   }
 
-  const [binary, ...args] = cmdArgs;
-  const isCmdOrBat = typeof binary === 'string' && (binary.endsWith('.cmd') || binary.endsWith('.bat'));
+  const [rawBinary, ...args] = cmdArgs;
+  const { executable, useShell } = resolveBinary(rawBinary);
 
   // Cleanse child environment: internal Scync master password must NEVER leak to the application process
   const childEnv = { ...process.env };
@@ -69,10 +125,10 @@ export async function runCommand(cmdArgs: string[], options: RunOptions = {}): P
   Object.assign(childEnv, injectedEnv);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, {
+    const child = spawn(executable, args, {
       stdio: 'inherit',
       env: childEnv,
-      shell: isCmdOrBat,
+      shell: useShell,
     });
 
     const forwardSigint = () => {

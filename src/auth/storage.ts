@@ -72,21 +72,4 @@ export function clearSession(): void {
   }
 }
 
-export function loadConfig(): UserConfig {
-  try {
-    const file = getConfigFilePath();
-    if (!fs.existsSync(file)) return {};
-    const raw = fs.readFileSync(file, 'utf8');
-    return JSON.parse(raw) as UserConfig;
-  } catch {
-    return {};
-  }
-}
-
-export function saveConfig(cfg: UserConfig): void {
-  ensureScyncDir();
-  const file = getConfigFilePath();
-  fs.writeFileSync(file, JSON.stringify(cfg, null, 2), {
-    mode: 0o600
-  });
-}
+export { loadConfig, saveConfig } from '../config/index.js';

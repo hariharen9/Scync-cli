@@ -1,7 +1,8 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, deleteSecret } from '../../core/firestore.js';
+import { getSecrets, deleteSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError } from '../errors.js';
+import { AuthRequiredError } from '../errors.js';
+import { resolveSingleSecret } from '../resolve.js';
 import { promptConfirm } from '../prompts.js';
 import pc from 'picocolors';
 
@@ -18,36 +19,12 @@ export async function rmCommand(name: string, options: RmOptions): Promise<void>
 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
-
-  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
-
-  if (options.id) {
-    matches = matches.filter(s => s.id === options.id);
-  }
-  if (options.project) {
-    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
-  }
-  if (options.env) {
-    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
-  }
-
-  if (matches.length === 0) {
-    throw new SecretNotFoundError(name);
-  }
-
-  if (matches.length > 1) {
-    throw new AmbiguousSecretError(
-      name,
-      matches.map(m => ({
-        id: m.id,
-        service: m.service,
-        environment: m.environment,
-        projectId: m.projectId
-      }))
-    );
-  }
-
-  const target = matches[0];
+  const projectId = options.project ? await resolveProjectId(session.uid, options.project, db) : undefined;
+  const target = resolveSingleSecret(allSecrets, name, {
+    id: options.id,
+    project: projectId,
+    env: options.env
+  });
 
   if (!options.force) {
     const confirmed = await promptConfirm(

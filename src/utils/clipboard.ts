@@ -56,7 +56,7 @@ export function copyWithAutoClear(text: string, timeoutSecs = 30): boolean {
   // because any local process can inspect process arguments (e.g. via Get-CimInstance or ps).
   // The hash is delivered securely over private stdin pipe to the background worker.
   try {
-    const expectedHash = crypto.createHash('sha256').update(text.trim()).digest('hex');
+    const expectedHash = crypto.createHash('sha256').update(text).digest('hex');
     const timeoutMs = timeoutSecs * 1000;
 
     const workerScript = `
@@ -72,11 +72,11 @@ process.stdin.on('end', () => {
 
   function get() {
     if (process.platform === 'win32') {
-      return (spawnSync('powershell', ['-NoProfile', '-Command', 'Get-Clipboard'], { encoding: 'utf8' }).stdout || '').trim();
+      return (spawnSync('powershell', ['-NoProfile', '-Command', 'Get-Clipboard'], { encoding: 'utf8' }).stdout || '').replace(/\\r?\\n$/, '');
     } else if (process.platform === 'darwin') {
-      return (spawnSync('pbpaste', [], { encoding: 'utf8' }).stdout || '').trim();
+      return (spawnSync('pbpaste', [], { encoding: 'utf8' }).stdout || '').replace(/\\r?\\n$/, '');
     } else {
-      return (spawnSync('xclip', ['-selection', 'clipboard', '-o'], { encoding: 'utf8' }).stdout || '').trim();
+      return (spawnSync('xclip', ['-selection', 'clipboard', '-o'], { encoding: 'utf8' }).stdout || '').replace(/\\r?\\n$/, '');
     }
   }
 

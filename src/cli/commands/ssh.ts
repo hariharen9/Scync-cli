@@ -13,6 +13,7 @@ export interface SSHOptions {
   dir?: string;
   json?: boolean;
   noAgent?: boolean;
+  force?: boolean;
 }
 
 export async function sshCommand(action?: string, name?: string, options: SSHOptions = {}): Promise<void> {
@@ -89,21 +90,34 @@ export async function sshCommand(action?: string, name?: string, options: SSHOpt
       const targetDir = path.resolve(options.dir || path.join(os.homedir(), '.ssh'));
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
+      } else if (process.platform !== 'win32') {
+        try {
+          const stat = fs.statSync(targetDir);
+          if ((stat.mode & 0o077) !== 0) {
+            console.error(pc.yellow(`⚠️  Warning: Target SSH directory '${targetDir}' has insecure permissions (mode 0${(stat.mode & 0o777).toString(8)}). Recommended: 0700.`));
+          }
+        } catch {}
       }
 
-      const privFileName = match.type === 'ssh-ed25519' ? `id_ed25519_${match.name}` : `id_rsa_${match.name}`;
+      // Sanitize key name to prevent path traversal
+      const safeKeyName = path.basename(match.name).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const privFileName = match.type === 'ssh-ed25519' ? `id_ed25519_${safeKeyName}` : `id_rsa_${safeKeyName}`;
       const pubFileName = `${privFileName}.pub`;
 
       const privPath = path.join(targetDir, privFileName);
       const pubPath = path.join(targetDir, pubFileName);
 
+      if ((fs.existsSync(privPath) || fs.existsSync(pubPath)) && !options.force) {
+        throw new CliError(`SSH key files already exist in '${targetDir}'. Use --force to overwrite.`, ExitCode.GENERAL_ERROR);
+      }
+
       const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
       const privateKey = await vault.decrypt(match.encPrivateKey);
 
       // Write private key with strict 0600 permissions
-      fs.writeFileSync(privPath, privateKey.trim() + '\n', { mode: 0o600, encoding: 'utf8' });
+      fs.writeFileSync(privPath, privateKey.replace(/\r?\n$/, '') + '\n', { mode: 0o600, encoding: 'utf8' });
       // Write public key with standard 0644 permissions
-      fs.writeFileSync(pubPath, match.publicKey.trim() + '\n', { mode: 0o644, encoding: 'utf8' });
+      fs.writeFileSync(pubPath, match.publicKey.replace(/\r?\n$/, '') + '\n', { mode: 0o644, encoding: 'utf8' });
 
       console.log(pc.green(`✓ Exported SSH key '${match.name}':`));
       console.log(`  Private: ${privPath} (mode: 0600)`);

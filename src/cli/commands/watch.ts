@@ -1,6 +1,6 @@
 import { getValidSession } from '../../auth/session.js';
 import { getDb } from '../../core/firebase.js';
-import { subscribeToSecrets } from '../../core/firestore.js';
+import { subscribeToSecrets, resolveProjectId } from '../../core/firestore.js';
 import { unlockVault, type VaultSession } from '../../core/vault-session.js';
 import { AuthRequiredError } from '../errors.js';
 import type { StoredSecret, Environment } from '../../core/types.js';
@@ -12,6 +12,12 @@ export interface WatchOptions {
   service?: string;
   reveal?: boolean;
   noAgent?: boolean;
+}
+
+function isEncValueEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.ciphertext === b.ciphertext && a.nonce === b.nonce;
 }
 
 export async function watchCommand(options: WatchOptions = {}): Promise<void> {
@@ -45,10 +51,12 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
       async (allSecrets: StoredSecret[]) => {
         let secrets = allSecrets;
         if (options.project) {
-          secrets = secrets.filter((s) => s.projectId === options.project);
+          const resolvedProj = await resolveProjectId(session.uid, options.project, db);
+          const p = resolvedProj.toLowerCase();
+          secrets = secrets.filter((s) => s.projectId?.toLowerCase() === p);
         }
         if (options.env) {
-          secrets = secrets.filter((s) => s.environment === (options.env as Environment));
+          secrets = secrets.filter((s) => s.environment.toLowerCase() === (options.env as string).toLowerCase());
         }
         if (options.service) {
           secrets = secrets.filter((s) => s.service.toLowerCase() === options.service!.toLowerCase());
@@ -85,8 +93,10 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
             }
           } else if (
             old.version !== current.version ||
-            old.encValue !== current.encValue ||
-            old.status !== current.status
+            !isEncValueEqual(old.encValue, current.encValue) ||
+            old.status !== current.status ||
+            old.environment !== current.environment ||
+            old.name !== current.name
           ) {
             // Modified
             console.log(

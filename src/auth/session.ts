@@ -44,8 +44,12 @@ export async function refreshSessionToken(session: StoredSession, apiKey = DEFAU
   });
 
   if (!res.ok) {
-    clearSession();
-    throw new AuthExpiredError();
+    if (res.status === 400 || res.status === 401) {
+      clearSession();
+      throw new AuthExpiredError();
+    }
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Authentication token refresh failed (HTTP ${res.status}): ${errText}`);
   }
 
   const data = await res.json() as {

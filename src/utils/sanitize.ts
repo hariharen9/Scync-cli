@@ -17,6 +17,15 @@ export function sanitizeTerminalOutput(str: string): string {
 
 export function maskSecretValue(value: string): string {
   if (!value) return '••••••••';
-  if (value.length <= 8) return '••••••••';
+  if (value.length <= 10) return '••••••••';
+  if (value.length <= 16) return `${value.slice(0, 2)}••••••••${value.slice(-2)}`;
   return `${value.slice(0, 3)}••••••••${value.slice(-3)}`;
+}
+
+export function parseExpirationDate(val: string): Date {
+  const d = new Date(val);
+  if (isNaN(d.getTime())) {
+    throw new Error(`Invalid expiration date '${val}'. Please provide a valid date string (e.g. '2026-12-31' or ISO 8601).`);
+  }
+  return d;
 }

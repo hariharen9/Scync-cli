@@ -14,7 +14,6 @@ This file tracks every module ported or copied from the reference repository (`E
 | `src/core/types.ts` | `packages/core/src/types.ts` | `61b96af` | None (direct port of domain types). |
 | `src/core/constants.ts` | `packages/core/src/constants.ts` | `61b96af` | None (direct port of metadata constants). |
 | `src/core/crypto.ts` | `packages/core/src/crypto.ts` | `61b96af` | Preserved all WebCrypto PBKDF2/AES-GCM params and verifier constants (`Scync_VALID_v1`). Uses Node 20+ native `crypto.subtle`, `btoa`, `atob`. |
-| `src/core/recovery.ts` | `packages/core/src/recovery.ts` | `61b96af` | Ported recovery key normalization and PBKDF2 derivation. Removed browser-oriented QR code generation if unneeded in CLI. |
 | `src/core/firestore.ts` | `packages/core/src/firestore.ts` | `61b96af` | Refactored Firebase dependency injection so `db` is passed or provided via a configured context rather than hardcoded global singleton with Vite envs. Maintained exact document shapes, versioning limits (10 items), specialized type queries (`getSSHKeys`, `getTOTPTokens`, `getLoginCredentials`, `getCertificates`), and ledger events. |
 | `src/core/firebase.ts` | `packages/core/src/firebase.ts` | `61b96af` | Replaced Vite `import.meta.env` with node config/environment variables (`process.env`) and modular initialization. |
 | `src/core/totp.ts` | `packages/core/src/totp.ts` | `61b96af` | Direct port of TOTP computation logic using standard RFC 6238 algorithms via `otpauth` library for OTP parsing, period calculation, remaining seconds, and code generation. |

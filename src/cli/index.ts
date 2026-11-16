@@ -22,6 +22,7 @@ import { lsCommand } from './commands/ls.js';
 import { getCommand } from './commands/get.js';
 import { showCommand } from './commands/show.js';
 import { pullCommand } from './commands/pull.js';
+import { projectsCommand } from './commands/projects.js';
 import { setCommand } from './commands/set.js';
 import { updateCommand } from './commands/update.js';
 import { rotateCommand } from './commands/rotate.js';
@@ -154,7 +155,8 @@ export function createProgram(): Command {
     .option('-p, --project <project>', 'Associated project ID')
     .option('--notes <notes>', 'Optional plaintext note')
     .option('--expires <date>', 'Expiry date (YYYY-MM-DD)')
-    .option('-f, --force', 'Overwrite without confirmation if secret already exists')
+    .option('-f, --force', 'Force overwrite and bypass concurrency conflict safety')
+    .option('-y, --yes', 'Skip confirmation prompt if secret already exists (preserves concurrency safety)')
     .action(async (name, opts) => {
       await setCommand(name, opts);
     });
@@ -215,15 +217,23 @@ export function createProgram(): Command {
 
   // --- .env Workflows ---
   program
-    .command('pull')
+    .command('pull [file]')
     .alias('export')
     .description('Export secrets to .env format (stdout or file)')
     .option('-p, --project <project>', 'Filter secrets by project')
     .option('-e, --env <environment>', 'Filter secrets by environment (e.g. Development, Production)')
     .option('-o, --output <file>', 'Write output to file (default writes to stdout)')
     .option('-f, --force', 'Overwrite target file if it already exists')
+    .action(async (file, opts) => {
+      await pullCommand(file, opts);
+    });
+
+  program
+    .command('projects')
+    .description('List all available vault projects with secret counts')
+    .option('--json', 'Output projects as JSON')
     .action(async (opts) => {
-      await pullCommand(opts);
+      await projectsCommand(opts);
     });
 
   program

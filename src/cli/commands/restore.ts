@@ -1,8 +1,9 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, restoreSecretVersion } from '../../core/firestore.js';
+import { getSecrets, restoreSecretVersion, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError, CliError, ExitCode } from '../errors.js';
+import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { resolveSingleSecret } from '../resolve.js';
 import pc from 'picocolors';
 
 export interface RestoreOptions {
@@ -23,36 +24,12 @@ export async function restoreCommand(name: string, versionArg: string, options: 
 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
-
-  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
-
-  if (options.id) {
-    matches = matches.filter(s => s.id === options.id);
-  }
-  if (options.project) {
-    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
-  }
-  if (options.env) {
-    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
-  }
-
-  if (matches.length === 0) {
-    throw new SecretNotFoundError(name);
-  }
-
-  if (matches.length > 1) {
-    throw new AmbiguousSecretError(
-      name,
-      matches.map(m => ({
-        id: m.id,
-        service: m.service,
-        environment: m.environment,
-        projectId: m.projectId
-      }))
-    );
-  }
-
-  const target = matches[0];
+  const projectId = options.project ? await resolveProjectId(session.uid, options.project, db) : undefined;
+  const target = resolveSingleSecret(allSecrets, name, {
+    id: options.id,
+    project: projectId,
+    env: options.env
+  });
   const versions = target.versions || [];
   const targetVer = versions.find(v => v.version === targetVerNum);
 

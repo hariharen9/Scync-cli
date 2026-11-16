@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, createSecret, updateSecret, logLedgerEvent } from '../../core/firestore.js';
+import { getSecrets, createSecret, updateSecret, decryptSecret, logLedgerEvent, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { parseEnvFile } from '../../utils/env.js';
 import { inferServiceFromName } from '../input.js';
+import { normalizeEnvironment, normalizeSecretType } from '../../core/constants.js';
 import type { SecretType, Environment, SecretStatus } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -53,8 +54,9 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
 
-  const env = (options.env || 'Development') as Environment;
-  const project = options.project || null;
+  const env = options.env ? normalizeEnvironment(options.env) : 'Development';
+  const project = options.project ? await resolveProjectId(session.uid, options.project, db) : null;
+  const secType = options.type ? normalizeSecretType(options.type) : 'Secret Key';
 
   // 3. Dry-run simulation
   if (options.dryRun) {
@@ -130,8 +132,17 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
         console.error(`${pc.red('✗')} Failed to create ${item.key}: ${err.message}`);
       }
     } else if (options.overwrite) {
-      // Update existing secret
+      // Update existing secret - preserve existing notes by decrypting if present
       try {
+        let existingNotes = '';
+        if (match.encNotes) {
+          try {
+            const dec = await decryptSecret(vault, match);
+            existingNotes = dec.notes;
+          } catch {
+            existingNotes = '';
+          }
+        }
         await updateSecret(
           session.uid,
           vault,
@@ -143,7 +154,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
             environment: match.environment,
             status: match.status,
             value: item.value,
-            notes: match.encNotes ? 'Imported update' : '',
+            notes: existingNotes,
             lastRotated: match.lastRotated,
             expiresOn: match.expiresOn,
             projectId: match.projectId,
@@ -152,7 +163,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
           match,
           'updated',
           db,
-          { force: true }
+          { force: options.force || false }
         );
         updatedCount++;
         console.log(`${pc.yellow('✓')} Updated ${pc.bold(item.key)} to v${(match.version || 1) + 1}`);
@@ -180,4 +191,8 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
     `${pc.dim(`${skippedCount} skipped`)}` +
     (errors.length > 0 ? ` | ${pc.red(`${errors.length} failed`)}` : '')
   );
+
+  if (errors.length > 0) {
+    throw new CliError(`Import completed with ${errors.length} error(s).`, ExitCode.GENERAL_ERROR);
+  }
 }

@@ -30,7 +30,8 @@ export async function readSecretValueInput(
     if (!fs.existsSync(filePath)) {
       throw new Error(`Secret input file '${options.file}' does not exist.`);
     }
-    return fs.readFileSync(filePath, 'utf8').trim();
+    // Return file contents intact without trimming whitespace or newlines
+    return fs.readFileSync(filePath, 'utf8');
   }
 
   // 3. Piped stdin
@@ -40,7 +41,8 @@ export async function readSecretValueInput(
       process.stdin.setEncoding('utf8');
       process.stdin.on('data', chunk => { data += chunk; });
       process.stdin.on('end', () => {
-        resolve(data.trim());
+        // Strip at most one trailing newline from stdin pipe (e.g. echo), preserving leading/trailing spaces
+        resolve(data.replace(/\r?\n$/, ''));
       });
       process.stdin.on('error', reject);
     });

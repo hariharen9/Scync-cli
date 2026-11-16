@@ -53,7 +53,7 @@ This log tracks architectural and design decisions made during the development o
 
 ### Decision 9: Push / Import Dry-Run & Fault Tolerance
 - **Context:** Spec §8.7 defines `scync push` for importing `.env` files into Scync.
-- **Decision:** Parse variables with `parseEnvFile`, infer services automatically, and provide `--dry-run` mode that compares with remote state without decrypting or modifying Firestore. In live mode, log each imported item and record ledger events with rollback safety.
+- **Decision:** Parse variables with `parseEnvFile`, infer services automatically, and provide `--dry-run` mode that compares with remote state without decrypting or modifying Firestore. In live mode, log each imported item with optimistic concurrency safety and record ledger events.
 
 ---
 
@@ -73,7 +73,7 @@ This log tracks architectural and design decisions made during the development o
 
 ### Decision 12: In-Memory Key Eviction & Idle Timeouts
 - **Context:** Spec §8.2 requires configurable idle timeouts, max lifetimes, explicit locking, and logout eviction.
-- **Decision:** Default idle timeout is 15 minutes (configurable via `scync config set agent.timeout <duration>`), refreshed upon every crypto operation. Absolute maximum lifetime is 8 hours. On timeout, explicit `scync lock`, or `scync logout`, the agent zeroes all key references, closes the socket, and terminates.
+- **Decision:** Default idle timeout is 15 minutes (configurable via `scync config set agent.timeout <duration>`), refreshed upon every crypto operation. Absolute maximum lifetime is 8 hours. On timeout, explicit `scync lock`, or `scync logout`, the agent dereferences key objects, closes the socket, and terminates (subject to V8 garbage collection behavior; same-user process memory inspection is outside node's sandbox model).
 
 ### Decision 13: Direct Subprocess Injection (`scync run`)
 - **Context:** Spec §8.7 requires running commands with secrets injected into their environment without writing plaintext files to disk.

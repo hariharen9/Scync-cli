@@ -1,9 +1,12 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, updateSecret, decryptSecret } from '../../core/firestore.js';
+import { getSecrets, updateSecret, decryptSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError, CliError, ExitCode } from '../errors.js';
+import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
+import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
+import { parseExpirationDate } from '../../utils/sanitize.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -26,35 +29,12 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
 
-  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
-
-  if (options.id) {
-    matches = matches.filter(s => s.id === options.id);
-  }
-  if (options.project) {
-    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
-  }
-  if (options.env) {
-    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
-  }
-
-  if (matches.length === 0) {
-    throw new SecretNotFoundError(name);
-  }
-
-  if (matches.length > 1) {
-    throw new AmbiguousSecretError(
-      name,
-      matches.map(m => ({
-        id: m.id,
-        service: m.service,
-        environment: m.environment,
-        projectId: m.projectId
-      }))
-    );
-  }
-
-  const target = matches[0];
+  const filterProjectId = options.project ? await resolveProjectId(session.uid, options.project, db) : undefined;
+  const target = resolveSingleSecret(allSecrets, name, {
+    id: options.id,
+    project: filterProjectId,
+    env: options.env
+  });
   const vault = await unlockVault(session.uid, db);
 
   // Determine new value:
@@ -66,7 +46,7 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
 
   if (options.value !== undefined || options.file !== undefined) {
     value = await readSecretValueInput(name, options, `New secret value for ${name}: `);
-    if (!value || value.trim().length === 0) {
+    if (value === undefined || value.length === 0) {
       throw new CliError('Secret value cannot be empty.', ExitCode.GENERAL_ERROR);
     }
     hasNewValue = true;
@@ -76,10 +56,10 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
       let data = '';
       process.stdin.setEncoding('utf8');
       process.stdin.on('data', chunk => { data += chunk; });
-      process.stdin.on('end', () => { resolve(data.trim()); });
+      process.stdin.on('end', () => { resolve(data.replace(/\r?\n$/, '')); });
       process.stdin.on('error', () => { resolve(''); });
       if (process.stdin.readableEnded) {
-        resolve(data.trim());
+        resolve(data.replace(/\r?\n$/, ''));
       }
     });
 
@@ -109,11 +89,13 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   }
 
   const service = options.service || target.service;
-  const type = (options.type || target.type) as SecretType;
-  const env = (options.env || target.environment) as Environment;
-  const status = (options.status || target.status) as SecretStatus;
-  const expiresOn = options.expires ? new Date(options.expires) : target.expiresOn;
-  const projectId = options.project !== undefined ? (options.project || null) : target.projectId;
+  const type = options.type ? normalizeSecretType(options.type) : target.type;
+  const env = options.env ? normalizeEnvironment(options.env) : target.environment;
+  const status = options.status ? normalizeSecretStatus(options.status) : target.status;
+  const expiresOn = options.expires ? parseExpirationDate(options.expires) : target.expiresOn;
+  const projectId = options.project !== undefined
+    ? (options.project ? await resolveProjectId(session.uid, options.project, db) : null)
+    : target.projectId;
 
   let remainingCodes = target.remainingCodes;
   let finalValue = value;

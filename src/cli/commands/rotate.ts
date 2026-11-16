@@ -1,8 +1,9 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, updateSecret, decryptSecret } from '../../core/firestore.js';
+import { getSecrets, updateSecret, decryptSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError, CliError, ExitCode } from '../errors.js';
+import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
 import pc from 'picocolors';
 
@@ -19,36 +20,12 @@ export async function rotateCommand(name: string, options: RotateOptions): Promi
 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
-
-  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
-
-  if (options.id) {
-    matches = matches.filter(s => s.id === options.id);
-  }
-  if (options.project) {
-    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
-  }
-  if (options.env) {
-    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
-  }
-
-  if (matches.length === 0) {
-    throw new SecretNotFoundError(name);
-  }
-
-  if (matches.length > 1) {
-    throw new AmbiguousSecretError(
-      name,
-      matches.map(m => ({
-        id: m.id,
-        service: m.service,
-        environment: m.environment,
-        projectId: m.projectId
-      }))
-    );
-  }
-
-  const target = matches[0];
+  const projectId = options.project ? await resolveProjectId(session.uid, options.project, db) : undefined;
+  const target = resolveSingleSecret(allSecrets, name, {
+    id: options.id,
+    project: projectId,
+    env: options.env
+  });
   const newValue = await readSecretValueInput(name, options, `Enter new rotated value for ${name}: `);
   if (!newValue) {
     throw new CliError('Rotated secret value cannot be empty.', ExitCode.GENERAL_ERROR);

@@ -1,8 +1,9 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, decryptSecret } from '../../core/firestore.js';
+import { getSecrets, decryptSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError } from '../errors.js';
+import { AuthRequiredError } from '../errors.js';
+import { resolveSingleSecret } from '../resolve.js';
 import { maskSecretValue, sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import type { RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
@@ -22,36 +23,12 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
-
-  let matches = allSecrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
-
-  if (options.id) {
-    matches = matches.filter(s => s.id === options.id);
-  }
-  if (options.project) {
-    matches = matches.filter(s => s.projectId?.toLowerCase() === options.project!.toLowerCase());
-  }
-  if (options.env) {
-    matches = matches.filter(s => s.environment.toLowerCase() === options.env!.toLowerCase());
-  }
-
-  if (matches.length === 0) {
-    throw new SecretNotFoundError(name);
-  }
-
-  if (matches.length > 1) {
-    throw new AmbiguousSecretError(
-      name,
-      matches.map(m => ({
-        id: m.id,
-        service: m.service,
-        environment: m.environment,
-        projectId: m.projectId
-      }))
-    );
-  }
-
-  const target = matches[0];
+  const projectId = options.project ? await resolveProjectId(session.uid, options.project, db) : undefined;
+  const target = resolveSingleSecret(allSecrets, name, {
+    id: options.id,
+    project: projectId,
+    env: options.env
+  });
 
   // Unlock and decrypt
   const vault = await unlockVault(session.uid, db);
@@ -72,7 +49,7 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
       updatedAt: decrypted.updatedAt.toISOString(),
       lastRotated: decrypted.lastRotated ? decrypted.lastRotated.toISOString() : null,
       expiresOn: decrypted.expiresOn ? decrypted.expiresOn.toISOString() : null,
-      value: decrypted.value,
+      value: options.reveal ? decrypted.value : maskSecretValue(decrypted.value),
       notes: decrypted.notes || null,
       versions: decrypted.versions?.map(v => ({
         version: v.version,

@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { getScyncDir } from './storage.js';
 
 export class FilePersistence {
   static type = 'LOCAL';
   type = 'LOCAL';
 
   static getFilePath(): string {
-    return path.join(os.homedir(), '.scync', 'auth_state.json');
+    return path.join(getScyncDir(), 'auth_state.json');
   }
 
   private readStorage(): Record<string, any> {

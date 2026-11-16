@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, decryptSecret } from '../../core/firestore.js';
+import { getSecrets, decryptSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError } from '../errors.js';
@@ -34,7 +34,16 @@ function checkGitIgnored(filePath: string): boolean | null {
   }
 }
 
-export async function pullCommand(options: PullOptions): Promise<void> {
+export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?: PullOptions): Promise<void> {
+  let file: string | undefined;
+  let options: PullOptions;
+  if (typeof fileOrOpts === 'string') {
+    file = fileOrOpts;
+    options = maybeOpts || {};
+  } else {
+    options = fileOrOpts || {};
+  }
+
   const session = await getValidSession();
   if (!session) throw new AuthRequiredError();
 
@@ -43,7 +52,8 @@ export async function pullCommand(options: PullOptions): Promise<void> {
 
   // Filter by project and environment
   if (options.project) {
-    const p = options.project.toLowerCase();
+    const resolvedProj = await resolveProjectId(session.uid, options.project, db);
+    const p = resolvedProj.toLowerCase();
     secrets = secrets.filter(s => s.projectId?.toLowerCase() === p);
   }
   if (options.env) {
@@ -78,18 +88,28 @@ export async function pullCommand(options: PullOptions): Promise<void> {
   }
 
   const content = lines.join('\n') + '\n';
+  const outputPath = options.output || file;
 
-  if (!options.output) {
+  if (!outputPath) {
+    // If running in Windows PowerShell non-TTY redirection (e.g. scync pull > .env),
+    // warn on stderr because PowerShell 5.1 '>' encodes as UTF-16LE, breaking .env parsers.
+    if (process.platform === 'win32' && !process.stdout.isTTY) {
+      console.error(
+        pc.yellow(
+          'Tip: PowerShell 5.1 \'>\' redirection outputs UTF-16LE. Use \'scync pull -o .env\' or \'scync pull .env\' to write UTF-8 directly.'
+        )
+      );
+    }
     // Write directly to stdout (clean for pipes: scync pull > .env)
     process.stdout.write(content);
     return;
   }
 
   // Writing to a target file
-  const targetPath = path.resolve(options.output);
+  const targetPath = path.resolve(outputPath);
 
   if (fs.existsSync(targetPath) && !options.force) {
-    const overwrite = await promptConfirm(`File '${options.output}' already exists. Overwrite?`, false);
+    const overwrite = await promptConfirm(`File '${outputPath}' already exists. Overwrite?`, false);
     if (!overwrite) {
       console.error(pc.yellow('Aborted pull. Target file was not modified.'));
       return;
@@ -101,13 +121,13 @@ export async function pullCommand(options: PullOptions): Promise<void> {
   if (isIgnored === false) {
     console.error(
       pc.yellow(
-        `\n⚠️  WARNING: '${options.output}' is inside a Git repository and is NOT ignored by .gitignore!\n` +
+        `\n⚠️  WARNING: '${outputPath}' is inside a Git repository and is NOT ignored by .gitignore!\n` +
         `   Plaintext secrets could be accidentally committed. Consider adding it to .gitignore.\n`
       )
     );
   }
 
-  // Write with owner-only permissions (0600)
-  fs.writeFileSync(targetPath, content, { mode: 0o600 });
-  console.error(pc.green(`✓ Exported ${secrets.length} secrets to '${options.output}' (mode: 0600)`));
+  // Write with owner-only permissions (0600) and explicit utf8
+  fs.writeFileSync(targetPath, content, { mode: 0o600, encoding: 'utf8' });
+  console.error(pc.green(`✓ Exported ${secrets.length} secrets to '${outputPath}' (mode: 0600, UTF-8)`));
 }

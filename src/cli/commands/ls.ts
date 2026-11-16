@@ -1,5 +1,5 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets } from '../../core/firestore.js';
+import { getSecrets, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
@@ -25,7 +25,8 @@ export async function lsCommand(options: LsOptions): Promise<void> {
 
   // Apply filters
   if (options.project) {
-    const projLower = options.project.toLowerCase();
+    const resolvedProj = await resolveProjectId(session.uid, options.project, db);
+    const projLower = resolvedProj.toLowerCase();
     secrets = secrets.filter(s => s.projectId?.toLowerCase() === projLower);
   }
   if (options.env) {

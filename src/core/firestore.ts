@@ -102,11 +102,27 @@ export async function changeVaultPassword(
     const notesPlaintext = secret.encNotes ? await decrypt(oldKey, secret.encNotes) : null;
     const newEncValue = await encrypt(newKey, valuePlaintext);
     const newEncNotes = notesPlaintext ? await encrypt(newKey, notesPlaintext) : null;
-    batch.update(secretRef, {
+    // Re-encrypt secret versions if present
+    const updateData: Record<string, any> = {
       encValue: newEncValue,
       encNotes: newEncNotes,
       updatedAt: serverTimestamp()
-    });
+    };
+
+    if (secret.versions && secret.versions.length > 0) {
+      const reEncryptedVersions: SecretVersion[] = [];
+      for (const v of secret.versions) {
+        const vPlain = await decrypt(oldKey, v.encValue);
+        const vEnc = await encrypt(newKey, vPlain);
+        reEncryptedVersions.push({
+          ...v,
+          encValue: vEnc
+        });
+      }
+      updateData.versions = reEncryptedVersions;
+    }
+
+    batch.update(secretRef, updateData);
   }
 
   // 3. Re-encrypt all SSH keys
@@ -737,4 +753,43 @@ export async function getCertificates(uid: string, dbOverride?: Firestore): Prom
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
     } as StoredCertificate;
   });
+}
+
+// ─── Projects ───
+
+export async function getProjects(uid: string, dbOverride?: Firestore): Promise<Project[]> {
+  const db = dbOverride || getDb();
+  const colRef = collection(db, "users", uid, "projects");
+  const snap = await getDocs(colRef);
+  return snap.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name || '',
+      description: data.description || '',
+      color: data.color || 'blue',
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
+    } as Project;
+  });
+}
+
+export async function resolveProjectId(
+  uid: string,
+  projectNameOrId: string,
+  dbOverride?: Firestore
+): Promise<string> {
+  if (!projectNameOrId) return projectNameOrId;
+  try {
+    const projects = await getProjects(uid, dbOverride);
+    const match = projects.find(
+      p => p.id === projectNameOrId || p.name.toLowerCase() === projectNameOrId.toLowerCase()
+    );
+    if (match) {
+      return match.id;
+    }
+  } catch {
+    // If fetching projects fails, return the original string
+  }
+  return projectNameOrId;
 }

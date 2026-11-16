@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { getConfigFilePath } from '../auth/storage.js';
 
 export interface ScyncConfig {
   'default.project'?: string;
@@ -12,8 +12,7 @@ export interface ScyncConfig {
 }
 
 export function getConfigPath(): string {
-  const scyncDir = path.join(os.homedir(), '.scync');
-  return path.join(scyncDir, 'config.json');
+  return getConfigFilePath();
 }
 
 export function parseDurationMs(duration: string, defaultMs: number): number {

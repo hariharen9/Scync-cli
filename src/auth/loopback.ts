@@ -23,23 +23,24 @@ const SUCCESS_HTML = `<!DOCTYPE html>
   <title>Scync — Authentication Authorized</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500&family=Syne:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #050507;
-      --card-bg: rgba(13, 14, 18, 0.78);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --green: #10b981;
-      --green-glow: rgba(16, 185, 129, 0.35);
-      --green-subtle: rgba(16, 185, 129, 0.12);
-      --cyan: #06b6d4;
-      --cyan-glow: rgba(6, 182, 212, 0.25);
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --text-subtle: #4b5563;
+      --bg: #030304;
+      --card-bg: rgba(10, 11, 14, 0.82);
+      --card-border: rgba(255, 255, 255, 0.07);
+      --card-border-glow: rgba(16, 185, 129, 0.18);
+      --emerald: #10b981;
+      --emerald-light: #34d399;
+      --emerald-glow: rgba(16, 185, 129, 0.3);
+      --emerald-subtle: rgba(16, 185, 129, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #475569;
       --font-display: 'Syne', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * {
@@ -51,7 +52,7 @@ const SUCCESS_HTML = `<!DOCTYPE html>
     body {
       background-color: var(--bg);
       color: var(--text-main);
-      font-family: var(--font-display);
+      font-family: var(--font-sans);
       min-height: 100vh;
       overflow: hidden;
       display: flex;
@@ -61,133 +62,168 @@ const SUCCESS_HTML = `<!DOCTYPE html>
       position: relative;
       user-select: none;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Ambient Matrix Canvas */
-    #bgCanvas {
+    /* Ambient Subtle Grid */
+    .bg-grid {
       position: absolute;
       inset: 0;
-      width: 100%;
-      height: 100%;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
       z-index: 1;
-      pointer-events: none;
     }
 
-    /* Subtle Film Grain / Noise Overlay */
-    .noise {
+    /* Top Ambient Spotlight */
+    .bg-spotlight {
       position: absolute;
-      inset: 0;
-      z-index: 2;
-      opacity: 0.035;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 480px;
+      background: radial-gradient(ellipse 65% 50% at 50% 0%, rgba(16, 185, 129, 0.12), transparent 75%);
       pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      z-index: 1;
     }
 
-    /* Top HUD Navigation Bar */
-    .top-hud {
+    /* Cursor Follow Light */
+    .cursor-glow {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      pointer-events: none;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 65%);
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      transition: opacity 0.4s ease;
+    }
+
+    /* Top Minimalist Header */
+    .header {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 64px;
-      padding: 0 36px;
+      height: 60px;
+      padding: 0 40px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       z-index: 10;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      background: linear-gradient(180deg, rgba(5,5,7,0.85) 0%, rgba(5,5,7,0) 100%);
-      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+      background: linear-gradient(180deg, rgba(3, 3, 4, 0.75) 0%, rgba(3, 3, 4, 0) 100%);
+      backdrop-filter: blur(12px);
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
+      gap: 10px;
+      text-decoration: none;
       color: #fff;
     }
 
-    .brand-mark {
-      width: 30px;
-      height: 30px;
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.28);
       display: grid;
       place-items: center;
-      border-radius: 6px;
-      box-shadow: 0 0 15px var(--green-subtle);
+      box-shadow: 0 0 10px var(--emerald-subtle);
     }
 
-    .hud-telemetry {
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f8fafc;
+    }
+
+    .brand-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--emerald-light);
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 2px;
+    }
+
+    .header-status {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 16px;
       font-family: var(--font-mono);
       font-size: 11px;
-      letter-spacing: 0.06em;
       color: var(--text-muted);
     }
 
-    .hud-badge {
+    .status-pill {
       display: flex;
       align-items: center;
-      gap: 7px;
-      padding: 4px 10px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 4px;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 10.5px;
+      letter-spacing: 0.02em;
     }
 
     .pulse-dot {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: pulseGlow 2s infinite ease-in-out;
+      background: var(--emerald);
+      box-shadow: 0 0 6px var(--emerald);
+      animation: pulse 2.2s infinite ease-in-out;
     }
 
-    @keyframes pulseGlow {
+    @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+      50% { opacity: 0.45; transform: scale(0.85); }
     }
 
-    /* Main Container & 3D Tilt Wrapper */
-    .main-viewport {
+    /* Main Perspective Card Wrapper */
+    .viewport {
       position: relative;
       z-index: 10;
       perspective: 1200px;
-      padding: 20px;
       width: 100%;
-      max-width: 540px;
+      max-width: 490px;
+      padding: 20px;
     }
 
     .card {
+      position: relative;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 40px 36px 32px;
+      border-radius: 20px;
+      padding: 44px 38px 36px;
       text-align: center;
-      position: relative;
-      overflow: hidden;
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
+      backdrop-filter: blur(36px);
+      -webkit-backdrop-filter: blur(36px);
       box-shadow:
-        0 24px 60px rgba(0, 0, 0, 0.7),
-        0 0 1px 1px rgba(255, 255, 255, 0.08) inset,
-        0 -20px 40px rgba(16, 185, 129, 0.03) inset;
+        0 30px 70px rgba(0, 0, 0, 0.8),
+        0 0 1px 1px rgba(255, 255, 255, 0.06) inset;
       transform-style: preserve-3d;
-      transition: transform 0.25s var(--ease-out-expo), box-shadow 0.25s var(--ease-out-expo);
-      animation: cardEntrance 0.8s var(--ease-out-expo) forwards;
+      transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+      animation: cardIn 0.7s var(--ease) forwards;
     }
 
-    @keyframes cardEntrance {
+    @keyframes cardIn {
       0% {
         opacity: 0;
-        transform: translateY(30px) scale(0.94);
+        transform: translateY(24px) scale(0.96);
       }
       100% {
         opacity: 1;
@@ -195,154 +231,96 @@ const SUCCESS_HTML = `<!DOCTYPE html>
       }
     }
 
-    /* Dynamic Border Glow Beam */
-    .card::before {
-      content: '';
+    /* Top Edge Refined Specular Beam */
+    .card-top-shine {
       position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: conic-gradient(
-        from 0deg,
-        transparent 0deg,
-        rgba(16, 185, 129, 0.2) 60deg,
-        rgba(6, 182, 212, 0.3) 120deg,
-        transparent 180deg
-      );
-      animation: rotateBeam 10s linear infinite;
-      z-index: -2;
-      pointer-events: none;
+      top: 0;
+      left: 20%;
+      right: 20%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.6), rgba(52, 211, 153, 0.8), rgba(16, 185, 129, 0.6), transparent);
+      border-radius: 1px;
     }
 
-    .card::after {
-      content: '';
-      position: absolute;
-      inset: 1px;
-      background: rgba(11, 12, 16, 0.94);
-      border-radius: 15px;
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    @keyframes rotateBeam {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    /* Centerpiece Holographic Lock / Shield Animation */
-    .shield-stage {
+    /* Centerpiece: Precision Vault Emblem */
+    .emblem-stage {
       position: relative;
-      width: 120px;
-      height: 120px;
-      margin: 0 auto 28px;
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 24px;
       display: grid;
       place-items: center;
     }
 
-    .pulse-ring {
+    .emblem-glow {
       position: absolute;
+      inset: -16px;
       border-radius: 50%;
-      border: 1px solid var(--green);
-      opacity: 0;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%);
       pointer-events: none;
-      animation: rippleExpand 3s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+      animation: auraPulse 3s ease-in-out infinite alternate;
     }
 
-    .pulse-ring:nth-child(1) { width: 90px; height: 90px; animation-delay: 0s; }
-    .pulse-ring:nth-child(2) { width: 90px; height: 90px; animation-delay: 1s; }
-    .pulse-ring:nth-child(3) { width: 90px; height: 90px; animation-delay: 2s; }
+    @keyframes auraPulse {
+      0% { transform: scale(0.9); opacity: 0.6; }
+      100% { transform: scale(1.15); opacity: 1; }
+    }
 
-    @keyframes rippleExpand {
+    .emblem-box {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, rgba(22, 27, 34, 0.85) 0%, rgba(13, 16, 20, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: grid;
+      place-items: center;
+      box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.5),
+        0 0 1px 1px rgba(255, 255, 255, 0.08) inset,
+        0 0 20px rgba(16, 185, 129, 0.15) inset;
+    }
+
+    /* Subtle Corner Crosshairs */
+    .crosshair {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      border-color: rgba(16, 185, 129, 0.4);
+      pointer-events: none;
+    }
+    .ch-tl { top: 5px; left: 5px; border-top: 1px solid; border-left: 1px solid; }
+    .ch-tr { top: 5px; right: 5px; border-top: 1px solid; border-right: 1px solid; }
+    .ch-bl { bottom: 5px; left: 5px; border-bottom: 1px solid; border-left: 1px solid; }
+    .ch-br { bottom: 5px; right: 5px; border-bottom: 1px solid; border-right: 1px solid; }
+
+    /* Animated Lock / Checkmark SVG */
+    .lock-svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .shackle {
+      transform-origin: 19px 7px;
+      animation: unlockShackle 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s forwards;
+    }
+
+    @keyframes unlockShackle {
       0% {
-        transform: scale(0.7);
-        opacity: 0.8;
-        border-color: #34d399;
+        transform: translateY(0);
       }
       50% {
-        opacity: 0.3;
+        transform: translateY(-4px);
       }
       100% {
-        transform: scale(2.2);
-        opacity: 0;
-        border-color: #06b6d4;
+        transform: translateY(-4px) rotate(24deg);
       }
-    }
-
-    /* Orbital Circles */
-    .orbit {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-    }
-
-    .orbit-1 {
-      width: 104px;
-      height: 104px;
-      border: 1px dashed rgba(16, 185, 129, 0.35);
-      animation: spinClockwise 18s linear infinite;
-    }
-
-    .orbit-2 {
-      width: 120px;
-      height: 120px;
-      border: 1px solid rgba(6, 182, 212, 0.18);
-      border-top-color: var(--cyan);
-      border-right-color: transparent;
-      animation: spinCounter 12s linear infinite;
-    }
-
-    @keyframes spinClockwise {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @keyframes spinCounter {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(-360deg); }
-    }
-
-    /* Center Hex Shield Icon */
-    .shield-core {
-      width: 68px;
-      height: 68px;
-      background: radial-gradient(circle, rgba(16,185,129,0.2) 0%, rgba(9,10,12,0.9) 80%);
-      border: 1.5px solid rgba(16, 185, 129, 0.6);
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      position: relative;
-      z-index: 5;
-      box-shadow:
-        0 0 30px var(--green-glow),
-        0 0 50px var(--cyan-glow) inset;
-      animation: coreGlow 3s ease-in-out infinite alternate;
-    }
-
-    @keyframes coreGlow {
-      0% {
-        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 0 25px rgba(6, 182, 212, 0.2) inset;
-      }
-      100% {
-        box-shadow: 0 0 35px rgba(16, 185, 129, 0.6), 0 0 45px rgba(6, 182, 212, 0.4) inset;
-      }
-    }
-
-    /* Drawing Checkmark SVG */
-    .checkmark-svg {
-      width: 32px;
-      height: 32px;
     }
 
     .checkmark-path {
-      stroke-dasharray: 40;
-      stroke-dashoffset: 40;
-      stroke-width: 3;
-      stroke: #34d399;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      fill: none;
-      animation: drawCheck 0.7s cubic-bezier(0.65, 0, 0.45, 1) 0.35s forwards;
+      stroke-dasharray: 24;
+      stroke-dashoffset: 24;
+      animation: drawCheck 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.5s forwards;
     }
 
     @keyframes drawCheck {
@@ -351,276 +329,295 @@ const SUCCESS_HTML = `<!DOCTYPE html>
       }
     }
 
-    /* Typography & Badges */
-    .session-badge {
+    /* Status Pill */
+    .auth-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
       padding: 4px 12px;
       border-radius: 999px;
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid rgba(16, 185, 129, 0.25);
+      background: rgba(16, 185, 129, 0.06);
+      border: 1px solid rgba(16, 185, 129, 0.2);
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 500;
-      color: #34d399;
+      color: var(--emerald-light);
       letter-spacing: 0.06em;
       text-transform: uppercase;
       margin-bottom: 14px;
     }
 
+    .auth-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 7px var(--emerald);
+    }
+
+    /* Headline & Subtitle */
     h1 {
+      font-family: var(--font-display);
       font-size: 24px;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.03em;
       color: #fff;
       margin-bottom: 8px;
+      line-height: 1.25;
     }
 
     .desc {
-      font-family: var(--font-display);
       font-size: 13.5px;
       color: var(--text-muted);
-      line-height: 1.55;
-      max-width: 420px;
-      margin: 0 auto 24px;
+      line-height: 1.6;
+      max-width: 380px;
+      margin: 0 auto 28px;
+      font-weight: 400;
     }
 
-    /* HUD Specs Telemetry Grid */
-    .hud-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      margin-bottom: 24px;
-      text-align: left;
-    }
-
-    .hud-cell {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      padding: 10px 14px;
-      transition: border-color 0.2s, background 0.2s;
-    }
-
-    .hud-cell:hover {
-      background: rgba(255, 255, 255, 0.035);
-      border-color: rgba(16, 185, 129, 0.2);
-    }
-
-    .hud-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-subtle);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 2px;
-    }
-
-    .hud-val {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 500;
-      color: #e5e7eb;
+    /* Telemetry Minimalist Segmented Strip */
+    .telemetry-strip {
       display: flex;
       align-items: center;
-      gap: 6px;
-    }
-
-    .hud-val.highlight {
-      color: #34d399;
-    }
-
-    /* Terminal Action Box */
-    .terminal-box {
-      background: #08090b;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 10px;
-      padding: 12px 16px;
+      padding: 10px 0;
+      margin-bottom: 24px;
+    }
+
+    .telemetry-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .telemetry-item:not(:last-child) {
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .telemetry-lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-subtle);
+    }
+
+    .telemetry-val {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .val-accent {
+      color: var(--emerald-light);
+    }
+
+    /* Terminal Action Capsule */
+    .terminal-capsule {
+      background: #060709;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px 12px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
-      position: relative;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) inset;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    .terminal-box:hover {
-      border-color: rgba(16, 185, 129, 0.4);
-      box-shadow: 0 0 15px rgba(16, 185, 129, 0.08);
+    .terminal-capsule:hover {
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) inset, 0 0 16px rgba(16, 185, 129, 0.08);
     }
 
-    .cmd-line {
-      font-family: var(--font-mono);
-      font-size: 13px;
+    .terminal-cmd {
       display: flex;
       align-items: center;
-      gap: 8px;
-      color: #fff;
+      gap: 9px;
+      font-family: var(--font-mono);
+      font-size: 13px;
     }
 
-    .cmd-prompt {
-      color: var(--green);
-      font-weight: bold;
+    .cmd-sign {
+      color: var(--emerald);
+      font-weight: 600;
     }
 
-    .cmd-text {
-      color: #f3f4f6;
+    .cmd-body {
+      color: #f8fafc;
       font-weight: 500;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
     }
 
     .cursor-blink {
       display: inline-block;
-      width: 7px;
-      height: 14px;
-      background: var(--green);
+      width: 6px;
+      height: 13px;
+      background: var(--emerald);
       vertical-align: middle;
-      animation: cursorBlink 1s infinite steps(2, start);
+      animation: blink 1.1s infinite steps(2, start);
     }
 
-    @keyframes cursorBlink {
+    @keyframes blink {
       0%, 100% { opacity: 0; }
       50% { opacity: 1; }
     }
 
-    .copy-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
+    .copy-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
       color: var(--text-muted);
       font-family: var(--font-mono);
       font-size: 11px;
-      padding: 6px 12px;
+      font-weight: 500;
+      padding: 5px 12px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s ease;
+      transition: all 0.18s ease;
     }
 
-    .copy-btn:hover {
-      background: rgba(16, 185, 129, 0.12);
-      border-color: rgba(16, 185, 129, 0.35);
+    .copy-pill:hover {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.3);
       color: #fff;
     }
 
-    .copy-btn:active {
+    .copy-pill:active {
       transform: scale(0.96);
     }
 
-    .copy-btn.copied {
-      background: rgba(16, 185, 129, 0.2);
-      border-color: var(--green);
-      color: #34d399;
+    .copy-pill.copied {
+      background: rgba(16, 185, 129, 0.16);
+      border-color: var(--emerald);
+      color: var(--emerald-light);
     }
 
-    /* Footer Note & Safe Close */
-    .footer-note {
+    /* Footer Guidance */
+    .footer-hint {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--text-subtle);
-      letter-spacing: 0.04em;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 7px;
     }
 
-    .key-hint {
+    kbd {
       padding: 2px 6px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 4px;
       color: var(--text-muted);
       font-size: 10px;
+      font-family: inherit;
     }
   </style>
 </head>
 <body>
-  <div class="noise"></div>
-  <canvas id="bgCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-spotlight"></div>
+  <div class="cursor-glow" id="cursorGlow"></div>
 
-  <!-- Top HUD Bar -->
-  <header class="top-hud">
-    <div class="brand">
-      <div class="brand-mark">
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+  <!-- Top Navigation Bar -->
+  <header class="header">
+    <a href="#" class="brand">
+      <div class="brand-icon">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
           <path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" stroke="#34d399" stroke-width="1.8" />
           <circle cx="10" cy="10" r="2.5" fill="#10b981" />
         </svg>
       </div>
-      <span>SCYNC<span style="color: #10b981; font-weight: 400; margin-left: 6px; font-size: 12px; font-family: var(--font-mono)">CLI</span></span>
-    </div>
+      <span class="brand-name">SCYNC</span>
+      <span class="brand-badge">CLI</span>
+    </a>
 
-    <div class="hud-telemetry">
-      <div class="hud-badge">
+    <div class="header-status">
+      <div class="status-pill">
         <span class="pulse-dot"></span>
-        <span>CHANNEL SECURED</span>
+        <span>Loopback 127.0.0.1</span>
       </div>
-      <div class="hud-badge" id="hudClock">00:00:00 UTC</div>
+      <span id="utcClock">00:00:00 UTC</span>
     </div>
   </header>
 
-  <!-- Main 3D Container -->
-  <main class="main-viewport">
+  <!-- Viewport Container -->
+  <main class="viewport">
     <div class="card" id="tiltCard">
-      <!-- Shield Stage -->
-      <div class="shield-stage">
-        <div class="pulse-ring"></div>
-        <div class="pulse-ring"></div>
-        <div class="pulse-ring"></div>
-        <div class="orbit orbit-1"></div>
-        <div class="orbit orbit-2"></div>
-        <div class="shield-core">
-          <svg class="checkmark-svg" viewBox="0 0 24 24">
-            <path class="checkmark-path" d="M4 12.5L9.5 18L20 6" />
+      <div class="card-top-shine"></div>
+
+      <!-- Precision Vault Emblem -->
+      <div class="emblem-stage">
+        <div class="emblem-glow"></div>
+        <div class="emblem-box">
+          <div class="crosshair ch-tl"></div>
+          <div class="crosshair ch-tr"></div>
+          <div class="crosshair ch-bl"></div>
+          <div class="crosshair ch-br"></div>
+
+          <!-- Padlock Morphing to Unlocked with Emerald Check -->
+          <svg class="lock-svg" viewBox="0 0 32 32" fill="none">
+            <!-- Shackle that pivots open -->
+            <path class="shackle" d="M11 14V9.5C11 6.74 13.24 4.5 16 4.5C18.76 4.5 21 6.74 21 9.5V14" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"/>
+            <!-- Padlock Body -->
+            <rect x="7" y="14" width="18" height="14" rx="4" fill="rgba(10, 12, 16, 0.95)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <!-- Inner Glowing Emerald Check -->
+            <path class="checkmark-path" d="M12 21L14.8 23.8L20 18.2" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </div>
       </div>
 
-      <!-- Identity Badge -->
+      <!-- Status Pill -->
       <div>
-        <div class="session-badge">
-          <span style="color:#10b981; font-size: 12px;">●</span>
-          Handshake Synchronized
+        <div class="auth-pill">
+          <span class="auth-dot"></span>
+          <span>Session Authenticated</span>
         </div>
       </div>
 
       <h1>Identity Verified</h1>
       <p class="desc">
-        Authentication handshake completed successfully. Your encrypted zero-knowledge token has been safely delivered to your terminal session.
+        Authentication handshake completed successfully. Your encrypted zero-knowledge token has been dispatched to your active terminal session.
       </p>
 
-      <!-- HUD Telemetry Grid -->
-      <div class="hud-grid">
-        <div class="hud-cell">
-          <div class="hud-label">Protocol</div>
-          <div class="hud-val">OAuth 2.0 PKCE <span style="color:#10b981">S256</span></div>
+      <!-- Minimalist Segmented Telemetry Strip -->
+      <div class="telemetry-strip">
+        <div class="telemetry-item">
+          <span class="telemetry-lbl">Protocol</span>
+          <span class="telemetry-val">PKCE <span class="val-accent">S256</span></span>
         </div>
-        <div class="hud-cell">
-          <div class="hud-label">Vault Status</div>
-          <div class="hud-val highlight">Ready to Unlock</div>
+        <div class="telemetry-item">
+          <span class="telemetry-lbl">Vault</span>
+          <span class="telemetry-val val-accent">Ready</span>
         </div>
-        <div class="hud-cell">
-          <div class="hud-label">Loopback Channel</div>
-          <div class="hud-val">127.0.0.1:8234 <span style="color:#06b6d4">200 OK</span></div>
-        </div>
-        <div class="hud-cell">
-          <div class="hud-label">Cryptography</div>
-          <div class="hud-val">Zero-Knowledge (AES-GCM)</div>
+        <div class="telemetry-item">
+          <span class="telemetry-lbl">Encryption</span>
+          <span class="telemetry-val">AES-256-GCM</span>
         </div>
       </div>
 
-      <!-- Terminal Next Step Box -->
-      <div class="terminal-box">
-        <div class="cmd-line">
-          <span class="cmd-prompt">&gt;</span>
-          <span class="cmd-text">scync unlock</span>
+      <!-- Terminal Command Capsule -->
+      <div class="terminal-capsule">
+        <div class="terminal-cmd">
+          <span class="cmd-sign">$</span>
+          <span class="cmd-body">scync unlock</span>
           <span class="cursor-blink"></span>
         </div>
-        <button class="copy-btn" id="copyBtn" onclick="copyCommand()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button class="copy-pill" id="copyBtn" onclick="copyCommand()">
+          <svg id="copyIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
@@ -628,43 +625,97 @@ const SUCCESS_HTML = `<!DOCTYPE html>
         </button>
       </div>
 
-      <!-- Footer Action -->
-      <div class="footer-note">
-        <span>You may now safely close this browser window</span>
-        <span class="key-hint">Ctrl + W</span>
+      <!-- Footer Guidance -->
+      <div class="footer-hint">
+        <span>You may close this tab</span>
+        <kbd>Ctrl+W</kbd>
       </div>
     </div>
   </main>
 
   <script>
-    // --- UTC Clock in Top HUD ---
+    // --- Web Audio Synthesizer ---
+    function playChime() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now); // D5
+        gain1.gain.setValueAtTime(0.04, now);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.45);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880.00, now + 0.08); // A5
+        gain2.gain.setValueAtTime(0.05, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.08);
+        osc2.stop(now + 0.65);
+      } catch (_) {}
+    }
+
+    function playClick() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, ctx.currentTime);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.05);
+      } catch (_) {}
+    }
+
+    window.addEventListener('load', () => setTimeout(playChime, 250));
+    window.addEventListener('click', playChime, { once: true });
+
+    // --- UTC Clock ---
     function updateClock() {
       const d = new Date();
-      const pad = function(n) { return String(n).padStart(2, '0'); };
-      const timeStr = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC';
-      const el = document.getElementById('hudClock');
+      const pad = n => String(n).padStart(2, '0');
+      const timeStr = \`\${pad(d.getUTCHours())}:\${pad(d.getUTCMinutes())}:\${pad(d.getUTCSeconds())} UTC\`;
+      const el = document.getElementById('utcClock');
       if (el) el.textContent = timeStr;
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // --- Interactive 3D Card Tilt ---
+    // --- Interactive 3D Parallax Tilt ---
     const card = document.getElementById('tiltCard');
-    let mouseX = window.innerWidth / 2;
-    let mouseY = window.innerHeight / 2;
+    const glow = document.getElementById('cursorGlow');
 
     window.addEventListener('mousemove', function(e) {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
+      if (glow) {
+        glow.style.left = e.clientX + 'px';
+        glow.style.top = e.clientY + 'px';
+      }
       if (!card) return;
       const rect = card.getBoundingClientRect();
       const cardX = rect.left + rect.width / 2;
       const cardY = rect.top + rect.height / 2;
       const dx = (e.clientX - cardX) / (window.innerWidth / 2);
       const dy = (e.clientY - cardY) / (window.innerHeight / 2);
-      const tiltX = -dy * 9;
-      const tiltY = dx * 9;
-      card.style.transform = 'rotateX(' + tiltX.toFixed(2) + 'deg) rotateY(' + tiltY.toFixed(2) + 'deg)';
+      const tiltX = -dy * 6;
+      const tiltY = dx * 6;
+      card.style.transform = \`rotateX(\${tiltX.toFixed(2)}deg) rotateY(\${tiltY.toFixed(2)}deg)\`;
     });
 
     window.addEventListener('mouseleave', function() {
@@ -673,167 +724,22 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 
     // --- Clipboard Copy ---
     function copyCommand() {
+      playClick();
       navigator.clipboard.writeText('scync unlock').then(function() {
         const btn = document.getElementById('copyBtn');
         const txt = document.getElementById('copyTxt');
         btn.classList.add('copied');
-        txt.textContent = 'Copied!';
+        txt.textContent = 'Copied';
         setTimeout(function() {
           btn.classList.remove('copied');
           txt.textContent = 'Copy';
-        }, 2000);
+        }, 1800);
       });
     }
-
-    // --- Cyber Matrix & Particle Canvas Background ---
-    const canvas = document.getElementById('bgCanvas');
-    const ctx = canvas.getContext('2d');
-    let W = 0, H = 0;
-
-    function resize() {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    // Falling Hex Stream Drops
-    const HEX = '0123456789abcdef';
-    function Drop(init) {
-      this.reset();
-      if (init) this.y = Math.random() * H;
-    }
-    Drop.prototype.reset = function() {
-      this.x = Math.random() * W;
-      this.y = -20;
-      this.vy = 0.35 + Math.random() * 0.55;
-      this.ch = HEX[Math.floor(Math.random() * 16)];
-      this.a = 0.04 + Math.random() * 0.06;
-      this.sz = 11 + Math.random() * 2;
-      this.timer = 0;
-      this.interval = 40 + Math.random() * 80;
-    };
-    Drop.prototype.tick = function() {
-      this.y += this.vy;
-      this.timer++;
-      if (this.timer > this.interval) {
-        this.ch = HEX[Math.floor(Math.random() * 16)];
-        this.timer = 0;
-      }
-      if (this.y > H + 20) this.reset();
-    };
-    Drop.prototype.draw = function() {
-      const dist = Math.hypot(this.x - mouseX, this.y - mouseY);
-      const hoverGlow = Math.max(0, 1 - dist / 180) * 0.45;
-      ctx.globalAlpha = Math.min(1, this.a + hoverGlow);
-      ctx.fillStyle = dist < 180 ? '#10b981' : '#ffffff';
-      ctx.font = this.sz + 'px "DM Mono", monospace';
-      ctx.fillText(this.ch, this.x, this.y);
-    };
-
-    // Spark Particles Burst from Center
-    function Spark(x, y) {
-      this.x = x;
-      this.y = y;
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 2 + Math.random() * 5.5;
-      this.vx = Math.cos(angle) * speed;
-      this.vy = Math.sin(angle) * speed;
-      this.alpha = 1;
-      this.decay = 0.012 + Math.random() * 0.02;
-      this.size = 1.5 + Math.random() * 2.5;
-      this.color = Math.random() > 0.3 ? '#10b981' : '#06b6d4';
-    }
-    Spark.prototype.tick = function() {
-      this.x += this.vx;
-      this.y += this.vy;
-      this.vx *= 0.96;
-      this.vy *= 0.96;
-      this.alpha -= this.decay;
-    };
-    Spark.prototype.draw = function() {
-      if (this.alpha <= 0) return;
-      ctx.globalAlpha = this.alpha;
-      ctx.fillStyle = this.color;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = this.color;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    };
-
-    const drops = [];
-    for (let i = 0; i < 95; i++) drops.push(new Drop(true));
-    const sparks = [];
-
-    // Trigger initial celebration spark burst
-    setTimeout(function() {
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2 - 80;
-      for (let i = 0; i < 65; i++) {
-        sparks.push(new Spark(cx, cy));
-      }
-    }, 400);
-
-    let scanlineY = 0;
-
-    function renderLoop() {
-      ctx.clearRect(0, 0, W, H);
-
-      // Subtle Background Grid (52px cells)
-      ctx.globalAlpha = 0.022;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < W; x += 52) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, H);
-        ctx.stroke();
-      }
-      for (let y = 0; y < H; y += 52) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
-      }
-
-      // Draw Drops
-      drops.forEach(function(d) {
-        d.tick();
-        d.draw();
-      });
-
-      // Draw Sparks
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        s.tick();
-        s.draw();
-        if (s.alpha <= 0) sparks.splice(i, 1);
-      }
-
-      // Sweeping Laser Scanline
-      scanlineY = (scanlineY + 0.6) % H;
-      const scanGrad = ctx.createLinearGradient(0, scanlineY - 80, 0, scanlineY + 80);
-      scanGrad.addColorStop(0, 'transparent');
-      scanGrad.addColorStop(0.5, 'rgba(16, 185, 129, 0.028)');
-      scanGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = scanGrad;
-      ctx.fillRect(0, scanlineY - 80, W, 160);
-
-      // Soft Radial Vignette
-      const vignette = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
-      vignette.addColorStop(0, 'transparent');
-      vignette.addColorStop(1, 'rgba(5, 5, 7, 0.88)');
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, W, H);
-
-      requestAnimationFrame(renderLoop);
-    }
-    renderLoop();
   </script>
 </body>
-</html>`;
+</html>
+`;
 
 export async function loginWithGoogleLoopback(opts: LoopbackOptions): Promise<OAuthTokens> {
   const state = crypto.randomBytes(16).toString('hex');

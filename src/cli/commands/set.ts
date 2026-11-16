@@ -1,11 +1,13 @@
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, createSecret } from '../../core/firestore.js';
+import { getSecrets, createSecret, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { readSecretValueInput, inferServiceFromName, type SecretInputOptions } from '../input.js';
 import { promptConfirm } from '../prompts.js';
 import { updateCommand } from './update.js';
+import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
+import { parseExpirationDate } from '../../utils/sanitize.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -18,6 +20,7 @@ export interface SetOptions extends SecretInputOptions {
   notes?: string;
   expires?: string;
   force?: boolean;
+  yes?: boolean;
 }
 
 export async function setCommand(name: string, options: SetOptions): Promise<void> {
@@ -27,8 +30,8 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
 
-  const env = (options.env || 'Development') as Environment;
-  const project = options.project || null;
+  const env = options.env ? normalizeEnvironment(options.env) : 'Development';
+  const project = options.project ? await resolveProjectId(session.uid, options.project, db) : null;
 
   // Check if a secret with this exact name, environment, and project already exists
   const existing = allSecrets.find(s => 
@@ -38,7 +41,8 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
   );
 
   if (existing) {
-    if (!options.force) {
+    const skipPrompt = options.yes || options.force;
+    if (!skipPrompt) {
       const confirm = await promptConfirm(
         `Secret '${name}' already exists in ${env}${project ? ` (project: ${project})` : ''}. Update it?`,
         false
@@ -49,7 +53,7 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
       }
     }
 
-    // Delegate to update
+    // Delegate to update: preserve concurrency checks unless --force was explicitly specified
     await updateCommand(name, {
       ...options,
       env,
@@ -66,9 +70,9 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
   }
 
   const service = options.service || inferServiceFromName(name);
-  const type = (options.type || 'API Key') as SecretType;
-  const status = (options.status || 'Active') as SecretStatus;
-  const expiresOn = options.expires ? new Date(options.expires) : null;
+  const type = options.type ? normalizeSecretType(options.type) : 'API Key';
+  const status = options.status ? normalizeSecretStatus(options.status) : 'Active';
+  const expiresOn = options.expires ? parseExpirationDate(options.expires) : null;
 
   let remainingCodes: number | null = null;
   let finalValue = value;

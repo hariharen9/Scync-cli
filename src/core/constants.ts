@@ -22,6 +22,33 @@ export const STATUSES: readonly SecretStatus[] = [
   'Active', 'Rotated', 'Expired', 'Revoked'
 ];
 
+export function normalizeEnvironment(input: string): Environment {
+  const trimmed = input.trim();
+  const match = ENVIRONMENTS.find(e => e.toLowerCase() === trimmed.toLowerCase());
+  if (!match) {
+    throw new Error(`Invalid environment '${input}'. Valid options: ${ENVIRONMENTS.join(', ')}`);
+  }
+  return match;
+}
+
+export function normalizeSecretType(input: string): SecretType {
+  const trimmed = input.trim();
+  const match = SECRET_TYPES.find(t => t.toLowerCase() === trimmed.toLowerCase());
+  if (!match) {
+    throw new Error(`Invalid secret type '${input}'. Valid options: ${SECRET_TYPES.join(', ')}`);
+  }
+  return match;
+}
+
+export function normalizeSecretStatus(input: string): SecretStatus {
+  const trimmed = input.trim();
+  const match = STATUSES.find(s => s.toLowerCase() === trimmed.toLowerCase());
+  if (!match) {
+    throw new Error(`Invalid secret status '${input}'. Valid options: ${STATUSES.join(', ')}`);
+  }
+  return match;
+}
+
 // Service accent colors (hex)
 export const SERVICE_COLORS: Record<ServiceName, string> = {
   'AWS': '#f59e0b',
