@@ -2,7 +2,7 @@ import { getValidSession } from '../../auth/session.js';
 import { getSecrets, updateSecret, decryptSecret } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
-import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError } from '../errors.js';
+import { AuthRequiredError, SecretNotFoundError, AmbiguousSecretError, CliError, ExitCode } from '../errors.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
@@ -57,13 +57,42 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
   const target = matches[0];
   const vault = await unlockVault(session.uid, db);
 
-  // Determine new value: if passed or piped, use it; otherwise decrypt existing
+  // Determine new value:
+  // 1. Explicit --value or --file options
+  // 2. Explicitly piped non-empty stdin
+  // 3. Otherwise, retain existing secret value (e.g. metadata-only update like --status)
   let value: string;
-  const hasNewValue = options.value !== undefined || options.file !== undefined || !process.stdin.isTTY;
+  let hasNewValue = false;
 
-  if (hasNewValue) {
+  if (options.value !== undefined || options.file !== undefined) {
     value = await readSecretValueInput(name, options, `New secret value for ${name}: `);
+    if (!value || value.trim().length === 0) {
+      throw new CliError('Secret value cannot be empty.', ExitCode.GENERAL_ERROR);
+    }
+    hasNewValue = true;
+  } else if (!process.stdin.isTTY) {
+    // Check if piped stdin has data
+    const pipedData = await new Promise<string>((resolve) => {
+      let data = '';
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', chunk => { data += chunk; });
+      process.stdin.on('end', () => { resolve(data.trim()); });
+      process.stdin.on('error', () => { resolve(''); });
+      if (process.stdin.readableEnded) {
+        resolve(data.trim());
+      }
+    });
+
+    if (pipedData.length > 0) {
+      value = pipedData;
+      hasNewValue = true;
+    } else {
+      // Non-TTY with empty stdin (e.g. script updating --status or --notes): preserve existing value
+      const dec = await decryptSecret(vault, target);
+      value = dec.value;
+    }
   } else {
+    // Interactive TTY with no --value or --file: preserve existing value
     const dec = await decryptSecret(vault, target);
     value = dec.value;
   }

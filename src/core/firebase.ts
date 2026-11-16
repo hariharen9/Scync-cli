@@ -7,14 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-// Load environment variables (.env.local has highest priority, matching Vite conventions)
-if (fs.existsSync('.env.local')) {
-  dotenv.config({ path: '.env.local' });
-}
-if (fs.existsSync('.env')) {
-  dotenv.config({ path: '.env' });
-}
-const userGlobalEnv = path.join(os.homedir(), '.scync', '.env');
+// Only load configuration from user's global ~/.scync/.env (or SCYNC_DIR).
+// NEVER load untrusted .env / .env.local from current working directory to prevent configuration hijacking.
+const scyncDir = process.env.SCYNC_DIR || path.join(os.homedir(), '.scync');
+const userGlobalEnv = path.join(scyncDir, '.env');
 if (fs.existsSync(userGlobalEnv)) {
   dotenv.config({ path: userGlobalEnv });
 }

@@ -63,13 +63,15 @@ export async function runCommand(cmdArgs: string[], options: RunOptions = {}): P
   const [binary, ...args] = cmdArgs;
   const isCmdOrBat = typeof binary === 'string' && (binary.endsWith('.cmd') || binary.endsWith('.bat'));
 
+  // Cleanse child environment: internal Scync master password must NEVER leak to the application process
+  const childEnv = { ...process.env };
+  delete childEnv.SCYNC_MASTER_PASSWORD;
+  Object.assign(childEnv, injectedEnv);
+
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       stdio: 'inherit',
-      env: {
-        ...process.env,
-        ...injectedEnv,
-      },
+      env: childEnv,
       shell: isCmdOrBat,
     });
 

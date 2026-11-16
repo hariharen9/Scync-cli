@@ -3,7 +3,7 @@ import { getDb } from '../../core/firebase.js';
 import { getVaultMeta } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AgentClient } from '../../agent/client.js';
-import { promptPassword } from '../prompts.js';
+import { promptMasterPassword } from '../prompts.js';
 import { loadConfig, parseDurationMs } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import pc from 'picocolors';
@@ -34,7 +34,7 @@ export async function unlockCommand(options: UnlockOptions = {}): Promise<void> 
   }
 
   // Get master password
-  const password = await promptPassword('Enter vault master password: ');
+  const password = await promptMasterPassword('Enter vault master password: ');
   if (!password) {
     throw new CliError('Master password cannot be empty.', ExitCode.VAULT_LOCKED);
   }

@@ -90,7 +90,7 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
 
   // 5. Handle Pipe / Raw output
   const isPipe = !process.stdout.isTTY || options.raw;
-  if (isPipe && !options.reveal) {
+  if (isPipe) {
     // Clean raw output with NO decoration or trailing newline
     process.stdout.write(decrypted.value);
     return;
@@ -98,7 +98,7 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
 
   // 6. Human Terminal Output
   if (options.reveal) {
-    console.log(decrypted.value);
+    process.stdout.write(decrypted.value + '\n');
   } else if (!options.copy) {
     const masked = maskSecretValue(decrypted.value);
     console.log(`${pc.bold(sanitizeTerminalOutput(target.name))}: ${pc.cyan(masked)}`);

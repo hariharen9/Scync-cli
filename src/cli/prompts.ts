@@ -1,11 +1,22 @@
 import * as readline from 'node:readline';
 
-export async function promptPassword(query = 'Master password: '): Promise<string> {
-  // Support non-interactive master password from env if explicitly set
+/**
+ * Prompts specifically for the vault master password, respecting
+ * SCYNC_MASTER_PASSWORD if set in environment (for automated/headless pipelines).
+ */
+export async function promptMasterPassword(query = 'Enter vault master password: '): Promise<string> {
   if (process.env.SCYNC_MASTER_PASSWORD) {
     return process.env.SCYNC_MASTER_PASSWORD;
   }
+  return promptPassword(query);
+}
 
+/**
+ * Prompts for a masked input or secret/password.
+ * NEVER reads SCYNC_MASTER_PASSWORD so setting secrets, entering passwords,
+ * or logging in will never accidentally hijack or leak the master password.
+ */
+export async function promptPassword(query = 'Password: '): Promise<string> {
   return new Promise((resolve) => {
     // If stdin is not a TTY (pipe), read directly without raw mode
     if (!process.stdin.isTTY) {

@@ -1,6 +1,6 @@
 import { getVaultMeta } from './firestore.js';
 import { deriveKey, checkVerifier, encrypt, decrypt } from './crypto.js';
-import { promptPassword } from '../cli/prompts.js';
+import { promptMasterPassword } from '../cli/prompts.js';
 import { VaultLockedError, CliError } from '../cli/errors.js';
 import { AgentClient } from '../agent/client.js';
 import { loadConfig, parseDurationMs } from '../config/index.js';
@@ -59,7 +59,7 @@ export async function unlockVault(
   const password =
     options.passwordOverride ||
     passwordOverride ||
-    (await promptPassword('Enter vault master password: '));
+    (await promptMasterPassword('Enter vault master password: '));
 
   if (!password) {
     throw new VaultLockedError('Master password cannot be empty.');

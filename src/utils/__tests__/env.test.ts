@@ -42,4 +42,39 @@ PORT=8080 # inline comment
     const parsed = parseEnvFile(line);
     expect(parsed[0].value).toBe(original);
   });
+
+  it('handles user-reported edge cases: inline # without space, comments after quotes, Windows paths, and multi-line PEM', () => {
+    const envContent = `
+PASS=abc#def
+URL=http://x/#frag
+KEY="value" # note
+KEY2='single value' # single note
+PEM="-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEA0
+-----END RSA PRIVATE KEY-----"
+EMPTY=
+EMPTY_QUOTED=""
+C_PATH="C:\\\\new\\\\temp"
+A_NB="a\\\\nb"
+`;
+    const parsed = parseEnvFile(envContent);
+    const map = Object.fromEntries(parsed.map(e => [e.key, e.value]));
+
+    expect(map.PASS).toBe('abc#def');
+    expect(map.URL).toBe('http://x/#frag');
+    expect(map.KEY).toBe('value');
+    expect(map.KEY2).toBe('single value');
+    expect(map.PEM).toBe('-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0\n-----END RSA PRIVATE KEY-----');
+    expect(map.EMPTY).toBe('');
+    expect(map.EMPTY_QUOTED).toBe('');
+    expect(map.C_PATH).toBe('C:\\new\\temp');
+    expect(map.A_NB).toBe('a\\nb');
+
+    // Test round-trip preservation for paths and escaped sequences
+    for (const [k, v] of Object.entries(map)) {
+      const formatted = formatEnvLine(k, v);
+      const reParsed = parseEnvFile(formatted);
+      expect(reParsed[0]?.value).toBe(v);
+    }
+  });
 });
