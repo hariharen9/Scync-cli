@@ -1,6 +1,6 @@
 import type { UserCredential, User } from 'firebase/auth';
 import { loadSession, saveSession, clearSession, type StoredSession } from './storage.js';
-import { DEFAULT_CONFIG } from '../core/firebase.js';
+import { DEFAULT_CONFIG, ensureAuthReady } from '../core/firebase.js';
 
 export class AuthExpiredError extends Error {
   constructor(message = "Session expired or revoked. Please run 'scync login'.") {
@@ -74,6 +74,12 @@ export async function refreshSessionToken(session: StoredSession, apiKey = DEFAU
 export async function getValidSession(): Promise<StoredSession | null> {
   const session = loadSession();
   if (!session) return null;
+
+  // In emulator or live mode, ensure Firebase Auth is initialized and has a valid currentUser
+  const auth = await ensureAuthReady();
+  if (!auth.currentUser || auth.currentUser.uid !== session.uid) {
+    return null;
+  }
 
   // If token is about to expire within 2 minutes, refresh it
   if (Date.now() > session.expiresAt - 120_000) {
