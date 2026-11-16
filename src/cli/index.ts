@@ -38,6 +38,7 @@ import { sshCommand } from './commands/ssh.js';
 import { passwordsCommand } from './commands/passwords.js';
 import { certsCommand } from './commands/certs.js';
 import { runAgentDaemon } from '../agent/server.js';
+import { closeFirebase } from '../core/firebase.js';
 import { CliError, ExitCode } from './errors.js';
 import pc from 'picocolors';
 
@@ -356,12 +357,15 @@ export async function runCli(argv = process.argv): Promise<void> {
   try {
     await program.parseAsync(argv);
 
-    // One-shot commands exit cleanly
+    // One-shot commands terminate background Firestore streams and exit cleanly
     const cmd = argv[2];
     if (!cmd || !['watch', '_agent-daemon'].includes(cmd)) {
-      process.exitCode = 0;
+      await closeFirebase();
     }
   } catch (err: any) {
+    try {
+      await closeFirebase();
+    } catch (_) {}
     if (err instanceof CliError) {
       console.error(`${pc.red('✖ Error:')} ${err.message}`);
       process.exit(err.exitCode);

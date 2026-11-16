@@ -119,3 +119,13 @@ export async function ensureAuthReady(): Promise<Auth> {
   }
   return auth;
 }
+
+export async function closeFirebase(): Promise<void> {
+  if (currentDb) {
+    try {
+      const { terminate } = await import('firebase/firestore');
+      await terminate(currentDb);
+    } catch (_) {}
+    currentDb = null;
+  }
+}
