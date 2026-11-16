@@ -3,6 +3,7 @@ import { getVaultMeta } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AgentClient } from '../../agent/client.js';
 import { AuthRequiredError } from '../errors.js';
+import { renderCard, CardRow } from '../tui.js';
 import pc from 'picocolors';
 
 export interface StatusOptions {
@@ -42,19 +43,45 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     return;
   }
 
-  console.log(pc.bold('--- Scync Vault Status ---'));
-  console.log(`Identity:         ${session.email || session.displayName} (${session.uid})`);
-  console.log(`Vault Initialized: ${meta ? pc.green('Yes') : pc.yellow('No (setup required on web)')}`);
+  const rows: CardRow[] = [
+    { key: 'Identity', val: `${pc.bold(session.email || session.displayName || 'User')} ${pc.dim(`(${session.uid})`)}` },
+    {
+      key: 'Vault State',
+      val: meta
+        ? `${pc.green('● Initialized')} ${pc.dim('(Zero-Knowledge AES-256-GCM)')}`
+        : pc.yellow('● Not Initialized (Setup required on web)')
+    }
+  ];
+
   if (meta) {
-    console.log(`Created:          ${meta.createdAt.toLocaleDateString()}`);
-    console.log(`Biometric Devices:${meta.biometrics?.length ? ` ${meta.biometrics.length} registered` : ' None'}`);
-    console.log(`Emergency Kit:    ${meta.recovery ? pc.green('Active') : pc.dim('Not configured')}`);
+    rows.push({ key: 'Created', val: meta.createdAt.toLocaleDateString() });
+    rows.push({
+      key: 'Biometrics',
+      val: meta.biometrics?.length ? `${meta.biometrics.length} registered key slot(s)` : pc.dim('None')
+    });
+    rows.push({
+      key: 'Emergency Kit',
+      val: meta.recovery ? `${pc.green('● Active')} ${pc.dim('& Validated')}` : pc.dim('Not configured')
+    });
   }
 
   if (agentStatus && agentStatus.status === 'unlocked') {
     const remainingMins = Math.ceil((agentStatus.ttlRemainingMs || 0) / 60000);
-    console.log(`Agent Status:     ${pc.green(`Unlocked (${remainingMins}m TTL remaining, PID: ${agentStatus.pid})`)}`);
+    rows.push({
+      key: 'Agent Daemon',
+      val: `${pc.green('● Unlocked')} ${pc.dim(`(${remainingMins}m idle TTL remaining · PID: ${agentStatus.pid})`)}`
+    });
   } else {
-    console.log(`Agent Status:     ${pc.dim('Locked / Inactive')}`);
+    rows.push({
+      key: 'Agent Daemon',
+      val: `${pc.dim('● Locked / Inactive')} ${pc.dim('(Run \'scync unlock\' to open session)')}`
+    });
   }
+
+  renderCard({
+    title: 'Scync Vault Status',
+    badge: meta ? pc.green('● Healthy') : pc.yellow('● Action Required'),
+    rows,
+    footer: pc.dim('Hardware Key & Biometric Auth • Scync v0.1.0')
+  });
 }

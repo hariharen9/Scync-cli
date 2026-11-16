@@ -6,6 +6,7 @@ import { AgentClient } from '../../agent/client.js';
 import { promptMasterPassword } from '../prompts.js';
 import { loadConfig, parseDurationMs } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { renderCard, successBanner, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface UnlockOptions {
@@ -26,9 +27,10 @@ export async function unlockCommand(options: UnlockOptions = {}): Promise<void> 
     const status = await agentClient.getStatus();
     if (status && status.status === 'unlocked') {
       const remainingMins = Math.ceil((status.ttlRemainingMs || 0) / 60000);
-      console.log(
-        pc.green(`✓ Vault is already unlocked. Agent active (${remainingMins}m idle TTL remaining).`)
-      );
+      infoBanner('Vault is already unlocked', [
+        { key: 'Agent Status', val: `${pc.green('● Active')} (PID: ${status.pid})` },
+        { key: 'Idle TTL', val: `${remainingMins} minute(s) remaining` }
+      ]);
       return;
     }
   }
@@ -59,10 +61,21 @@ export async function unlockCommand(options: UnlockOptions = {}): Promise<void> 
   });
 
   if (options.noAgent) {
-    console.log(pc.green('✓ Vault master password verified (in-process only, agent disabled).'));
+    successBanner('Vault Master Password Verified', [
+      { key: 'Session Type', val: 'In-process only (agent disabled)' },
+      { key: 'Encryption', val: 'AES-256-GCM / PBKDF2' }
+    ]);
   } else {
-    console.log(
-      pc.green(`✓ Vault unlocked. Background agent active (idle timeout: ${timeoutStr}).`)
-    );
+    renderCard({
+      title: 'Scync Vault Session',
+      badge: pc.green('● Unlocked'),
+      rows: [
+        { key: 'Status', val: `${pc.green('● Unlocked')} & Ready` },
+        { key: 'Custody', val: 'Background Agent Daemon' },
+        { key: 'Idle TTL', val: `${timeoutStr} (auto-locks on inactivity)` },
+        { key: 'Security', val: 'AES-256-GCM (Zero-Knowledge)' }
+      ],
+      footer: pc.dim('Run \'scync lock\' anytime to immediately purge in-memory keys')
+    });
   }
 }

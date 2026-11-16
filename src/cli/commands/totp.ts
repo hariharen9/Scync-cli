@@ -5,6 +5,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { generateTOTPCode, getRemainingSeconds } from '../../core/totp.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { renderTable, renderCard, renderProgressBar, successBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface TOTPOptions {
@@ -25,7 +26,7 @@ export async function totpCommand(nameQuery?: string, options: TOTPOptions = {})
       console.log('[]');
       return;
     }
-    console.log(pc.dim('No TOTP tokens found in your vault.'));
+    console.log(pc.dim('No TOTP tokens found in your vault. Add authenticator tokens on the Scync web app.'));
     return;
   }
 
@@ -43,19 +44,25 @@ export async function totpCommand(nameQuery?: string, options: TOTPOptions = {})
       return;
     }
 
-    console.log(pc.bold('--- TOTP Authenticator Tokens ---'));
-    console.log(
-      `${pc.dim('ISSUER'.padEnd(20))} ${pc.dim('LABEL'.padEnd(25))} ${pc.dim('PERIOD')}`
-    );
-    console.log('─'.repeat(55));
+    const columns = [
+      { header: 'ISSUER', minWidth: 20 },
+      { header: 'ACCOUNT LABEL', minWidth: 26 },
+      { header: 'INTERVAL', minWidth: 10 },
+      { header: 'STATUS', minWidth: 18 }
+    ];
 
-    for (const t of tokens) {
+    const rows = tokens.map(t => {
       const remaining = getRemainingSeconds(t.period);
-      console.log(
-        `${pc.cyan(t.issuer.padEnd(20))} ${t.label.padEnd(25)} ${t.period}s (${remaining}s remaining)`
-      );
-    }
-    console.log(pc.dim('\nTo generate a code: scync totp <issuer-or-label>'));
+      return [
+        pc.bold(t.issuer),
+        pc.dim(t.label),
+        `${t.period}s`,
+        remaining > 5 ? pc.green(`● ${remaining}s left`) : pc.red(`● ${remaining}s left`)
+      ];
+    });
+
+    const footer = pc.dim('To generate code: scync totp <issuer-or-label> [-c]');
+    renderTable(columns, rows, { footer });
     return;
   }
 
@@ -98,13 +105,25 @@ export async function totpCommand(nameQuery?: string, options: TOTPOptions = {})
     return;
   }
 
-  const formattedCode = code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
-  console.log(
-    `${pc.bold(token.issuer)} (${token.label}): ${pc.green(pc.bold(formattedCode))}  ${pc.dim(`[expires in ${remaining}s]`)}`
-  );
+  const formattedCode = code.length === 6 ? `${code.slice(0, 3)}  ${code.slice(3)}` : code;
+  const progress = renderProgressBar(remaining / token.period, 16);
+
+  renderCard({
+    title: `TOTP: ${token.issuer}`,
+    badge: remaining > 5 ? pc.green(`● ${remaining}s`) : pc.red(`● ${remaining}s`),
+    rows: [
+      { key: 'Label', val: token.label },
+      { key: 'Code', val: pc.bold(pc.green(formattedCode)) },
+      { key: 'Countdown', val: `${progress}  ${remaining}s remaining` },
+      { key: 'Algorithm', val: pc.dim(`${token.algorithm || 'SHA-1'} · ${token.digits || 6} digits · ${token.period}s step`) }
+    ],
+    footer: pc.dim('Time-based One-Time Password • RFC 6238')
+  });
 
   if (options.copy) {
     await copyWithAutoClear(code, 30);
-    console.error(pc.dim('✓ Code copied to clipboard (will auto-clear in 30s).'));
+    successBanner('TOTP Code copied to clipboard', [
+      { key: 'Auto-Clear', val: 'Clears in 30 seconds' }
+    ]);
   }
 }

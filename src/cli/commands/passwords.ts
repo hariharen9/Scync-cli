@@ -4,6 +4,7 @@ import { getPasswords } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { renderTable, successBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface PasswordsOptions {
@@ -43,7 +44,9 @@ export async function passwordsCommand(query?: string, options: PasswordsOptions
     const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
     const plainPassword = await vault.decrypt(passwords[0].encPassword);
     await copyWithAutoClear(plainPassword, 30);
-    console.error(pc.green(`✓ Password for '${passwords[0].name}' copied to clipboard (auto-clears in 30s).`));
+    successBanner(`Password for '${passwords[0].name}' copied to clipboard`, [
+      { key: 'Auto-Clear', val: 'Clears in 30 seconds' }
+    ]);
     return;
   }
 
@@ -72,12 +75,14 @@ export async function passwordsCommand(query?: string, options: PasswordsOptions
     return;
   }
 
-  console.log(pc.bold('--- Stored Passwords (Read-Only) ---'));
-  console.log(
-    `${pc.dim('TITLE'.padEnd(20))} ${pc.dim('USERNAME'.padEnd(25))} ${pc.dim('PASSWORD'.padEnd(16))} ${pc.dim('URL')}`
-  );
-  console.log('─'.repeat(80));
+  const columns = [
+    { header: 'TITLE', minWidth: 22 },
+    { header: 'USERNAME / EMAIL', minWidth: 26 },
+    { header: 'PASSWORD', minWidth: 16 },
+    { header: 'TARGET URL', minWidth: 24 }
+  ];
 
+  const rows: string[][] = [];
   for (const p of passwords) {
     let pass = pc.dim('••••••••');
     if (options.reveal && vault) {
@@ -85,15 +90,20 @@ export async function passwordsCommand(query?: string, options: PasswordsOptions
         const plain = await vault.decrypt(p.encPassword);
         pass = pc.yellow(plain);
       } catch {
-        pass = pc.red('[Decryption error]');
+        pass = pc.red('[Error]');
       }
     }
-    console.log(
-      `${pc.cyan(p.name.padEnd(20))} ${p.username.padEnd(25)} ${pass.padEnd(16)} ${pc.dim(p.url || 'none')}`
-    );
+    rows.push([
+      pc.bold(p.name),
+      p.username,
+      pass,
+      pc.dim(p.url || 'None')
+    ]);
   }
 
-  if (!options.reveal) {
-    console.log(pc.dim('\nUse --reveal to display plaintext passwords or --copy to copy to clipboard.'));
-  }
+  const footer = options.reveal
+    ? pc.dim(`Total: ${passwords.length} password item(s)`)
+    : pc.dim(`Total: ${passwords.length} password item(s) • Use -r (--reveal) to show or -c (--copy) to copy`);
+
+  renderTable(columns, rows, { footer });
 }

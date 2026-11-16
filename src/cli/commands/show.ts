@@ -5,6 +5,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { maskSecretValue, sanitizeTerminalOutput } from '../../utils/sanitize.js';
+import { renderCard, CardRow, CardSection, envBadge, statusBadge } from '../tui.js';
 import type { RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -61,57 +62,73 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
     return;
   }
 
-  // Display human-formatted details
-  console.log(pc.bold(`--- Secret Details: ${sanitizeTerminalOutput(target.name)} ---`));
-  console.log(`${pc.dim('ID:')}             ${target.id}`);
-  console.log(`${pc.dim('Service:')}        ${sanitizeTerminalOutput(target.service)}`);
-  console.log(`${pc.dim('Type:')}           ${sanitizeTerminalOutput(target.type)}`);
-  console.log(`${pc.dim('Environment:')}    ${sanitizeTerminalOutput(target.environment)}`);
-  console.log(`${pc.dim('Status:')}         ${target.status === 'Active' ? pc.green(target.status) : pc.yellow(target.status)}`);
+  // Build Metadata Rows
+  const rows: CardRow[] = [
+    { key: 'ID', val: pc.dim(target.id) },
+    { key: 'Service', val: sanitizeTerminalOutput(target.service) },
+    { key: 'Type', val: sanitizeTerminalOutput(target.type) },
+    { key: 'Environment', val: envBadge(sanitizeTerminalOutput(target.environment)) },
+    { key: 'Status', val: statusBadge(target.status) },
+  ];
+
   if (target.projectId) {
-    console.log(`${pc.dim('Project:')}        ${sanitizeTerminalOutput(target.projectId)}`);
-  }
-  console.log(`${pc.dim('Version:')}        v${target.version || 1}`);
-  console.log(`${pc.dim('Created:')}        ${target.createdAt.toLocaleString()}`);
-  console.log(`${pc.dim('Updated:')}        ${target.updatedAt.toLocaleString()}`);
-  if (target.lastRotated) {
-    console.log(`${pc.dim('Last Rotated:')}   ${target.lastRotated.toLocaleString()}`);
-  }
-  if (target.expiresOn) {
-    console.log(`${pc.dim('Expires On:')}     ${target.expiresOn.toLocaleString()}`);
+    rows.push({ key: 'Project', val: pc.bold(sanitizeTerminalOutput(target.projectId)) });
   }
 
-  // Value display (check for Recovery Codes JSON structure)
-  console.log(pc.dim('─'.repeat(50)));
+  rows.push({ key: 'Version', val: pc.dim(`v${target.version || 1}`) });
+  rows.push({ key: 'Created', val: target.createdAt.toLocaleString() });
+  rows.push({ key: 'Updated', val: target.updatedAt.toLocaleString() });
+
+  if (target.lastRotated) {
+    rows.push({ key: 'Last Rotated', val: target.lastRotated.toLocaleString() });
+  }
+  if (target.expiresOn) {
+    rows.push({ key: 'Expires On', val: target.expiresOn.toLocaleString() });
+  }
+
+  const sections: CardSection[] = [];
+
+  // Value Section
   if (target.type === 'Recovery Codes') {
     try {
       const codeSet = JSON.parse(decrypted.value) as RecoveryCodeSet;
-      console.log(pc.bold('Recovery Codes:'));
+      const codeLines: string[] = [];
       codeSet.codes.forEach((c, idx) => {
         const statusLabel = c.used ? pc.dim('[USED]') : pc.green('[UNUSED]');
-        const codeDisplay = options.reveal ? c.code : maskSecretValue(c.code);
-        console.log(`  ${idx + 1}. ${codeDisplay} ${statusLabel}`);
+        const codeDisplay = options.reveal ? pc.bold(c.code) : pc.cyan(maskSecretValue(c.code));
+        codeLines.push(`${pc.dim(`${String(idx + 1).padStart(2, ' ')}.`)} ${codeDisplay}  ${statusLabel}`);
       });
-      console.log(pc.dim(`Remaining unused codes: ${target.remainingCodes ?? 'N/A'}`));
+      codeLines.push(pc.dim(`Remaining unused codes: ${target.remainingCodes ?? 'N/A'}`));
+      sections.push({ title: 'Recovery Codes', lines: codeLines });
     } catch {
-      console.log(`${pc.bold('Value:')}           ${options.reveal ? decrypted.value : maskSecretValue(decrypted.value)}`);
+      const valDisplay = options.reveal ? pc.bold(decrypted.value) : pc.cyan(maskSecretValue(decrypted.value));
+      sections.push({ title: 'Value', lines: [valDisplay] });
     }
   } else {
-    console.log(`${pc.bold('Value:')}           ${options.reveal ? decrypted.value : maskSecretValue(decrypted.value)}`);
+    const valDisplay = options.reveal ? pc.bold(decrypted.value) : `${pc.cyan(maskSecretValue(decrypted.value))} ${pc.dim(`(${decrypted.value.length} chars)`)}`;
+    sections.push({ title: 'Value', lines: [valDisplay] });
   }
 
   if (decrypted.notes) {
-    console.log(`${pc.bold('Notes:')}           ${sanitizeTerminalOutput(decrypted.notes)}`);
+    sections.push({ title: 'Notes', lines: [sanitizeTerminalOutput(decrypted.notes)] });
   }
 
-  // Version history
+  // Version History Section
   if (target.versions && target.versions.length > 0) {
-    console.log(pc.dim('─'.repeat(50)));
-    console.log(pc.bold('Version History:'));
-    target.versions.forEach(v => {
-      console.log(
-        `  v${v.version} - ${pc.cyan(v.changeType || 'updated')} on ${v.createdAt.toLocaleDateString()} ${v.note ? `(${v.note})` : ''}`
-      );
+    const historyLines = target.versions.map(v => {
+      const action = pc.cyan(v.changeType || 'updated');
+      const date = pc.dim(v.createdAt.toLocaleDateString());
+      const note = v.note ? pc.dim(`· ${v.note}`) : '';
+      return `${pc.dim('○')} ${pc.bold(`v${v.version}`)}  ${action} on ${date} ${note}`;
     });
+    sections.push({ title: 'Version History', lines: historyLines });
   }
+
+  renderCard({
+    title: `Secret: ${sanitizeTerminalOutput(target.name)}`,
+    badge: statusBadge(target.status),
+    rows,
+    sections,
+    footer: options.reveal ? undefined : pc.dim('Tip: Use -r (--reveal) to print plaintext value')
+  });
 }

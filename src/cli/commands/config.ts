@@ -4,6 +4,7 @@ import {
   setConfigValue,
   unsetConfigValue,
 } from '../../config/index.js';
+import { renderCard, successBanner, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export async function configCommand(action?: string, key?: string, value?: string): Promise<void> {
@@ -14,13 +15,18 @@ export async function configCommand(action?: string, key?: string, value?: strin
       const cfg = loadConfig();
       const keys = Object.keys(cfg);
       if (keys.length === 0) {
-        console.log(pc.dim('No configuration settings set.'));
+        infoBanner('No configuration settings set. Using defaults.');
         return;
       }
-      console.log(pc.bold('Current Configuration:'));
-      for (const k of keys.sort()) {
-        console.log(`  ${pc.cyan(k)} = ${pc.yellow(String(cfg[k]))}`);
-      }
+      const rows = keys.sort().map(k => ({
+        key: k,
+        val: pc.cyan(String(cfg[k]))
+      }));
+      renderCard({
+        title: 'Scync Configuration',
+        rows,
+        footer: pc.dim('Stored in ~/.scync/config.json')
+      });
       break;
     }
 
@@ -32,7 +38,7 @@ export async function configCommand(action?: string, key?: string, value?: strin
       }
       const val = getConfigValue(key);
       if (val === undefined) {
-        console.log(pc.dim(`Configuration key '${key}' is not set.`));
+        infoBanner(`Configuration key '${key}' is not set.`);
       } else {
         console.log(String(val));
       }
@@ -46,7 +52,10 @@ export async function configCommand(action?: string, key?: string, value?: strin
         return;
       }
       setConfigValue(key, value);
-      console.log(pc.green(`✓ Set ${key} = ${value}`));
+      successBanner(`Updated configuration '${key}'`, [
+        { key: 'Key', val: key },
+        { key: 'Value', val: pc.cyan(value) }
+      ]);
       break;
     }
 
@@ -58,9 +67,9 @@ export async function configCommand(action?: string, key?: string, value?: strin
       }
       const removed = unsetConfigValue(key);
       if (removed) {
-        console.log(pc.green(`✓ Unset ${key}`));
+        successBanner(`Unset configuration '${key}'`);
       } else {
-        console.log(pc.dim(`Configuration key '${key}' was not set.`));
+        infoBanner(`Configuration key '${key}' was not set.`);
       }
       break;
     }

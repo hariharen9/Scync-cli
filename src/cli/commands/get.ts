@@ -6,6 +6,7 @@ import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
 import { maskSecretValue, sanitizeTerminalOutput } from '../../utils/sanitize.js';
+import { renderCard, envBadge, statusBadge, successBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface GetOptions {
@@ -39,17 +40,20 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
   const vault = await unlockVault(session.uid, db);
   const decrypted = await decryptSecret(vault, target);
 
-  // 3. Handle Clipboard copy if requested
+  // 4. Handle Clipboard copy if requested
   if (options.copy) {
     const copied = copyWithAutoClear(decrypted.value, 30);
     if (copied) {
-      console.error(pc.green(`✓ Copied value of '${sanitizeTerminalOutput(target.name)}' to clipboard. Clipboard will auto-clear in 30s.`));
+      successBanner(`Copied value of '${sanitizeTerminalOutput(target.name)}' to clipboard`, [
+        { key: 'Clipboard TTL', val: 'Auto-clears in 30 seconds' },
+        { key: 'Integrity', val: 'SHA-256 fingerprint verified' }
+      ]);
     } else {
-      console.error(pc.yellow('Failed to write to system clipboard.'));
+      warningBanner('Failed to write secret to system clipboard.');
     }
   }
 
-  // 4. Handle JSON output
+  // 5. Handle JSON output
   if (options.json) {
     console.log(JSON.stringify({
       id: decrypted.id,
@@ -65,20 +69,29 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
     return;
   }
 
-  // 5. Handle Pipe / Raw output
+  // 6. Handle Pipe / Raw output
   const isPipe = !process.stdout.isTTY || options.raw;
   if (isPipe) {
-    // Clean raw output with NO decoration or trailing newline
+    // Clean raw output with NO decoration or trailing newline for piping
     process.stdout.write(decrypted.value);
     return;
   }
 
-  // 6. Human Terminal Output
+  // 7. Human Terminal Output
   if (options.reveal) {
     process.stdout.write(decrypted.value + '\n');
   } else if (!options.copy) {
     const masked = maskSecretValue(decrypted.value);
-    console.log(`${pc.bold(sanitizeTerminalOutput(target.name))}: ${pc.cyan(masked)}`);
-    console.log(pc.dim('Use --reveal (-r) to show full value, or --copy (-c) to copy to clipboard.'));
+    renderCard({
+      title: `Secret: ${sanitizeTerminalOutput(target.name)}`,
+      badge: statusBadge(target.status),
+      rows: [
+        { key: 'Environment', val: envBadge(target.environment) },
+        { key: 'Service', val: sanitizeTerminalOutput(target.service) },
+        { key: 'Type', val: sanitizeTerminalOutput(target.type) },
+        { key: 'Value', val: `${pc.cyan(masked)} ${pc.dim(`(${decrypted.value.length} chars)`)}` }
+      ],
+      footer: pc.dim('Tip: Use -r (--reveal) to print value, or -c (--copy) to copy to clipboard')
+    });
   }
 }

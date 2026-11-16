@@ -2,6 +2,7 @@ import { getValidSession } from '../../auth/session.js';
 import { getProjects, getSecrets } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
+import { renderTable } from '../tui.js';
 import pc from 'picocolors';
 
 export interface ProjectsOptions {
@@ -35,23 +36,25 @@ export async function projectsCommand(options: ProjectsOptions = {}): Promise<vo
     }
   }
 
-  console.log(pc.bold(
-    'NAME'.padEnd(26) +
-    'ID'.padEnd(28) +
-    'SECRETS'.padEnd(10) +
-    'COLOR'
-  ));
-  console.log(pc.dim('─'.repeat(74)));
+  const columns = [
+    { header: 'PROJECT NAME', minWidth: 26 },
+    { header: 'PROJECT ID', minWidth: 26 },
+    { header: 'SECRETS', minWidth: 10, align: 'right' as const },
+    { header: 'THEME', minWidth: 12 }
+  ];
 
-  for (const p of projects) {
+  const rows = projects.map(p => {
     const count = secretCounts[p.id] || 0;
-    console.log(
-      pc.bold(p.name.padEnd(26)) +
-      pc.dim(p.id.padEnd(28)) +
-      String(count).padEnd(10) +
-      (p.color || 'blue')
-    );
-  }
+    return [
+      pc.bold(p.name),
+      pc.dim(p.id),
+      count > 0 ? pc.green(String(count)) : pc.dim('0'),
+      pc.cyan(`● ${p.color || 'blue'}`)
+    ];
+  });
 
-  console.log(pc.dim(`\nTotal: ${projects.length} project(s)`));
+  const totalSecrets = Object.values(secretCounts).reduce((a, b) => a + b, 0);
+  const footer = pc.dim(`Total: ${projects.length} project(s) containing ${totalSecrets} vaulted secret(s)`);
+
+  renderTable(columns, rows, { footer });
 }

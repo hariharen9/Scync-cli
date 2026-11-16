@@ -3,7 +3,7 @@ import { getSecrets, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
-import type { SecretType, Environment, SecretStatus } from '../../core/types.js';
+import { renderTable, envBadge, statusBadge } from '../tui.js';
 import pc from 'picocolors';
 
 export interface LsOptions {
@@ -81,31 +81,27 @@ export async function lsCommand(options: LsOptions): Promise<void> {
     return;
   }
 
-  // Terminal tabular format
-  console.log(
-    pc.bold(
-      `${'NAME'.padEnd(28)} ${'SERVICE'.padEnd(14)} ${'ENVIRONMENT'.padEnd(14)} ${'TYPE'.padEnd(22)} ${'STATUS'.padEnd(10)} ${'VER'}`
-    )
-  );
-  console.log(pc.dim('─'.repeat(96)));
+  const columns = [
+    { header: 'NAME', minWidth: 26 },
+    { header: 'SERVICE', minWidth: 14 },
+    { header: 'ENVIRONMENT', minWidth: 16 },
+    { header: 'TYPE', minWidth: 16 },
+    { header: 'STATUS', minWidth: 12 },
+    { header: 'VER', minWidth: 5, align: 'right' as const }
+  ];
 
-  for (const s of secrets) {
-    const name = sanitizeTerminalOutput(s.name);
-    const service = sanitizeTerminalOutput(s.service);
-    const env = sanitizeTerminalOutput(s.environment);
-    const type = sanitizeTerminalOutput(s.type);
-    
-    let statusText: string = s.status;
-    if (s.status === 'Active') statusText = pc.green(s.status);
-    else if (s.status === 'Rotated') statusText = pc.yellow(s.status);
-    else if (s.status === 'Expired' || s.status === 'Revoked') statusText = pc.red(s.status);
+  const rows = secrets.map(s => [
+    pc.bold(sanitizeTerminalOutput(s.name)),
+    pc.dim(sanitizeTerminalOutput(s.service)),
+    envBadge(sanitizeTerminalOutput(s.environment)),
+    sanitizeTerminalOutput(s.type),
+    statusBadge(s.status),
+    pc.dim(`v${s.version || 1}`)
+  ]);
 
-    const ver = `v${s.version || 1}`;
+  const projectsCount = new Set(secrets.map(s => s.projectId).filter(Boolean)).size;
+  const projectSummary = projectsCount > 0 ? ` across ${projectsCount} project(s)` : '';
+  const footer = pc.dim(`Showing ${secrets.length} secret(s)${projectSummary} • 🔒 Vault Encrypted (AES-256-GCM)`);
 
-    console.log(
-      `${pc.bold(name.padEnd(28))} ${service.padEnd(14)} ${env.padEnd(14)} ${type.padEnd(22)} ${statusText.padEnd(10)} ${pc.dim(ver)}`
-    );
-  }
-
-  console.log(pc.dim(`\nTotal: ${secrets.length} secrets`));
+  renderTable(columns, rows, { footer, emptyMessage: 'No secrets found matching specified criteria.' });
 }

@@ -8,6 +8,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError } from '../errors.js';
 import { formatEnvLine } from '../../utils/env.js';
 import { promptConfirm } from '../prompts.js';
+import { successBanner, envBadge, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface PullOptions {
@@ -129,5 +130,9 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
 
   // Write with owner-only permissions (0600) and explicit utf8
   fs.writeFileSync(targetPath, content, { mode: 0o600, encoding: 'utf8' });
-  console.error(pc.green(`✓ Exported ${secrets.length} secrets to '${outputPath}' (mode: 0600, UTF-8)`));
+  successBanner(`Exported ${secrets.length} secret(s) to '${outputPath}'`, [
+    { key: 'Environment', val: envBadge(options.env || 'All') },
+    { key: 'File Permissions', val: 'chmod 0600 (owner-only, UTF-8)' },
+    { key: 'Format', val: 'POSIX Dotenv (.env)' }
+  ]);
 }

@@ -4,6 +4,7 @@ import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
+import { successBanner, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
 export interface RestoreOptions {
@@ -46,5 +47,9 @@ export async function restoreCommand(name: string, versionArg: string, options: 
   await restoreSecretVersion(session.uid, vault, target.id, targetVerNum, target, db);
 
   const nextVer = (target.version || 1) + 1;
-  console.log(pc.green(`✓ Successfully restored '${target.name}' from v${targetVerNum} (now at v${nextVer})`));
+  successBanner(`Restored '${target.name}' from v${targetVerNum}`, [
+    { key: 'Version', val: `${pc.dim(`v${target.version || 1}`)} → ${pc.bold(`v${nextVer}`)} (restored from v${targetVerNum})` },
+    { key: 'Environment', val: envBadge(target.environment) },
+    { key: 'Service', val: target.service }
+  ]);
 }

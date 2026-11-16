@@ -7,6 +7,7 @@ import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
 import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
 import { parseExpirationDate } from '../../utils/sanitize.js';
+import { successBanner, envBadge, statusBadge } from '../tui.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -141,5 +142,9 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
     { expectedVersion, force: options.force }
   );
 
-  console.log(pc.green(`✓ Updated secret '${target.name}' to v${expectedVersion + 1}`));
+  successBanner(`Updated secret '${target.name}'`, [
+    { key: 'Version', val: `${pc.dim(`v${expectedVersion}`)} → ${pc.bold(`v${expectedVersion + 1}`)}` },
+    { key: 'Environment', val: envBadge(env) },
+    { key: 'Status', val: statusBadge(status) }
+  ]);
 }

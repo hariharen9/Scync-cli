@@ -6,6 +6,8 @@ import { getDb } from '../../core/firebase.js';
 import { getSSHKeys } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { sanitizeKeyFileName } from '../../utils/sanitize.js';
+import { renderTable, successBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface SSHOptions {
@@ -16,16 +18,14 @@ export interface SSHOptions {
   force?: boolean;
 }
 
-export async function sshCommand(action?: string, name?: string, options: SSHOptions = {}): Promise<void> {
+export async function sshCommand(action = 'ls', name?: string, options: SSHOptions = {}): Promise<void> {
   const session = await getValidSession();
   if (!session) throw new AuthRequiredError();
 
   const db = getDb();
   const keys = await getSSHKeys(session.uid, db);
 
-  const sub = (action || 'ls').toLowerCase();
-
-  switch (sub) {
+  switch (action.toLowerCase()) {
     case 'ls':
     case 'list': {
       if (options.json) {
@@ -44,18 +44,22 @@ export async function sshCommand(action?: string, name?: string, options: SSHOpt
         return;
       }
 
-      console.log(pc.bold('--- Stored SSH Keys ---'));
-      console.log(
-        `${pc.dim('NAME'.padEnd(20))} ${pc.dim('TYPE'.padEnd(12))} ${pc.dim('FINGERPRINT'.padEnd(35))} ${pc.dim('MAPPED HOSTS')}`
-      );
-      console.log('─'.repeat(85));
+      const columns = [
+        { header: 'KEY NAME', minWidth: 20 },
+        { header: 'KEY TYPE', minWidth: 14 },
+        { header: 'FINGERPRINT (SHA256)', minWidth: 36 },
+        { header: 'MAPPED HOSTS', minWidth: 20 }
+      ];
 
-      for (const k of keys) {
-        const hostsStr = k.hosts.length > 0 ? k.hosts.join(', ') : pc.dim('none');
-        console.log(
-          `${pc.cyan(k.name.padEnd(20))} ${k.type.padEnd(12)} ${pc.dim(k.fingerprint.padEnd(35))} ${hostsStr}`
-        );
-      }
+      const rows = keys.map(k => [
+        pc.bold(k.name),
+        pc.cyan(k.type),
+        pc.dim(k.fingerprint),
+        k.hosts.length > 0 ? k.hosts.join(', ') : pc.dim('none')
+      ]);
+
+      const footer = pc.dim(`Total: ${keys.length} SSH key(s) • Use 'scync ssh export <name>' to write keys`);
+      renderTable(columns, rows, { footer });
       break;
     }
 
@@ -94,34 +98,36 @@ export async function sshCommand(action?: string, name?: string, options: SSHOpt
         try {
           const stat = fs.statSync(targetDir);
           if ((stat.mode & 0o077) !== 0) {
-            console.error(pc.yellow(`⚠️  Warning: Target SSH directory '${targetDir}' has insecure permissions (mode 0${(stat.mode & 0o777).toString(8)}). Recommended: 0700.`));
+            warningBanner(`Target SSH directory '${targetDir}' has open permissions (0${(stat.mode & 0o777).toString(8)}). Recommended: 0700.`);
           }
         } catch {}
       }
 
-      // Sanitize key name to prevent path traversal
-      const safeKeyName = path.basename(match.name).replace(/[^a-zA-Z0-9._-]/g, '_');
-      const privFileName = match.type === 'ssh-ed25519' ? `id_ed25519_${safeKeyName}` : `id_rsa_${safeKeyName}`;
+      const safeBaseName = sanitizeKeyFileName(match.name);
+      const isEd25519 = match.type === 'ssh-ed25519';
+      const privFileName = safeBaseName ? (isEd25519 ? `id_ed25519_${safeBaseName}` : `id_rsa_${safeBaseName}`) : (isEd25519 ? 'id_ed25519' : 'id_rsa');
       const pubFileName = `${privFileName}.pub`;
 
       const privPath = path.join(targetDir, privFileName);
       const pubPath = path.join(targetDir, pubFileName);
 
       if ((fs.existsSync(privPath) || fs.existsSync(pubPath)) && !options.force) {
-        throw new CliError(`SSH key files already exist in '${targetDir}'. Use --force to overwrite.`, ExitCode.GENERAL_ERROR);
+        throw new CliError(
+          `Target key file(s) already exist at '${privPath}'. Use --force to overwrite.`,
+          ExitCode.GENERAL_ERROR
+        );
       }
 
       const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
       const privateKey = await vault.decrypt(match.encPrivateKey);
 
-      // Write private key with strict 0600 permissions
       fs.writeFileSync(privPath, privateKey.replace(/\r?\n$/, '') + '\n', { mode: 0o600, encoding: 'utf8' });
-      // Write public key with standard 0644 permissions
       fs.writeFileSync(pubPath, match.publicKey.replace(/\r?\n$/, '') + '\n', { mode: 0o644, encoding: 'utf8' });
 
-      console.log(pc.green(`✓ Exported SSH key '${match.name}':`));
-      console.log(`  Private: ${privPath} (mode: 0600)`);
-      console.log(`  Public:  ${pubPath} (mode: 0644)`);
+      successBanner(`Exported SSH key pair '${match.name}'`, [
+        { key: 'Private Key', val: `${privPath} ${pc.dim('(chmod 0600)')}` },
+        { key: 'Public Key', val: `${pubPath} ${pc.dim('(chmod 0644)')}` }
+      ]);
       break;
     }
 
@@ -131,7 +137,8 @@ export async function sshCommand(action?: string, name?: string, options: SSHOpt
       for (const k of keys) {
         if (k.hosts && k.hosts.length > 0) {
           count++;
-          const privFileName = k.type === 'ssh-ed25519' ? `id_ed25519_${k.name}` : `id_rsa_${k.name}`;
+          const safeBaseName = sanitizeKeyFileName(k.name);
+          const privFileName = k.type === 'ssh-ed25519' ? `id_ed25519_${safeBaseName}` : `id_rsa_${safeBaseName}`;
           console.log(`Host ${k.hosts.join(' ')}`);
           console.log(`  IdentityFile ~/.ssh/${privFileName}`);
           console.log(`  IdentitiesOnly yes\n`);

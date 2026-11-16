@@ -1,6 +1,7 @@
 import { clearSession, loadSession } from '../../auth/storage.js';
 import { clearAuthState } from '../../auth/persistence.js';
 import { AgentClient } from '../../agent/client.js';
+import { successBanner, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export async function logoutCommand(): Promise<void> {
@@ -16,8 +17,11 @@ export async function logoutCommand(): Promise<void> {
   clearSession();
   clearAuthState();
   if (session) {
-    console.log(pc.green(`✓ Successfully logged out from ${session.email || session.uid}. Vault locked.`));
+    successBanner('Logged Out Successfully', [
+      { key: 'Account', val: session.email || session.uid },
+      { key: 'Vault Status', val: `${pc.green('Locked')} ${pc.dim('(In-memory custody terminated)')}` }
+    ]);
   } else {
-    console.log(pc.dim('No active session was found.'));
+    infoBanner('No active session was found.');
   }
 }

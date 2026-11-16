@@ -4,6 +4,7 @@ import { createSessionFromUser } from '../../auth/session.js';
 import { loginWithGoogleLoopback } from '../../auth/loopback.js';
 import { promptPassword, promptText } from '../prompts.js';
 import { CliError, ExitCode } from '../errors.js';
+import { renderCard, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface LoginOptions {
@@ -27,8 +28,16 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const session = await createSessionFromUser(cred.user, 'password');
-      console.log(pc.green(`✓ Signed in successfully as ${session.email}`));
-      console.log(pc.dim(`  UID: ${session.uid}`));
+      renderCard({
+        title: 'Scync Authentication',
+        badge: pc.green('● Authorized'),
+        rows: [
+          { key: 'Account', val: pc.bold(session.email || 'User') },
+          { key: 'Provider', val: pc.cyan('Email / Password') },
+          { key: 'Firebase UID', val: pc.dim(session.uid) }
+        ],
+        footer: pc.dim('Session credentials stored in global configuration')
+      });
     } catch (err: any) {
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         throw new CliError('Invalid email or password.', ExitCode.AUTH_REQUIRED);
@@ -51,7 +60,11 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
       return loginCommand({ ...options, email });
     }
 
-    console.log(pc.dim('Starting browser authentication...'));
+    infoBanner('Initiating browser authorization...', [
+      { key: 'Method', val: 'Google OAuth 2.0 PKCE' },
+      { key: 'Callback', val: options.port ? `http://localhost:${options.port}/callback` : 'Auto-selected loopback port' }
+    ]);
+
     try {
       const tokens = await loginWithGoogleLoopback({
         clientId,
@@ -64,8 +77,16 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
       const cred = await signInWithCredential(auth, credential);
       const session = await createSessionFromUser(cred.user, 'google.com');
 
-      console.log(pc.green(`✓ Signed in successfully as ${session.email || session.displayName || 'Google User'}`));
-      console.log(pc.dim(`  UID: ${session.uid}`));
+      renderCard({
+        title: 'Scync Authentication',
+        badge: pc.green('● Authorized'),
+        rows: [
+          { key: 'Account', val: pc.bold(session.email || session.displayName || 'Google User') },
+          { key: 'Provider', val: pc.cyan('Google (OAuth 2.0)') },
+          { key: 'Firebase UID', val: pc.dim(session.uid) }
+        ],
+        footer: pc.dim('Zero-Knowledge Secrets Platform • Scync CLI')
+      });
     } catch (err: any) {
       throw new CliError(`Google sign-in failed: ${err.message}`, ExitCode.AUTH_REQUIRED);
     }

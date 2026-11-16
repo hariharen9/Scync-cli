@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /**
  * Sanitizes untrusted strings fetched from remote storage to prevent terminal injection attacks.
  * Strips ANSI escape sequences, control characters (except common newlines/tabs when formatted),
@@ -28,4 +30,9 @@ export function parseExpirationDate(val: string): Date {
     throw new Error(`Invalid expiration date '${val}'. Please provide a valid date string (e.g. '2026-12-31' or ISO 8601).`);
   }
   return d;
+}
+
+export function sanitizeKeyFileName(name: string): string {
+  if (!name) return 'key';
+  return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
 }

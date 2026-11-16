@@ -1,5 +1,6 @@
 import { getValidSession } from '../../auth/session.js';
 import { AgentClient } from '../../agent/client.js';
+import { successBanner, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export async function lockCommand(): Promise<void> {
@@ -8,8 +9,11 @@ export async function lockCommand(): Promise<void> {
 
   try {
     await agentClient.lock();
-    console.log(pc.green('✓ Vault locked. Key custody terminated.'));
+    successBanner('Vault Locked', [
+      { key: 'Key Custody', val: `${pc.green('Terminated')} (All in-memory master keys wiped)` },
+      { key: 'Background Agent', val: 'Stopped' }
+    ]);
   } catch {
-    console.log(pc.dim('Vault is already locked.'));
+    infoBanner('Vault is already locked. No active key custody session.');
   }
 }

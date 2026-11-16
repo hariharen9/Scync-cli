@@ -3,6 +3,7 @@ import { getDb } from '../../core/firebase.js';
 import { getCertificates } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
+import { renderTable, renderCard } from '../tui.js';
 import pc from 'picocolors';
 
 export interface CertsOptions {
@@ -53,32 +54,43 @@ export async function certsCommand(query?: string, options: CertsOptions = {}): 
     return;
   }
 
-  console.log(pc.bold('--- SSL/TLS Certificates (Read-Only) ---'));
-  console.log(
-    `${pc.dim('NAME'.padEnd(20))} ${pc.dim('SUBJECT / HOSTS'.padEnd(30))} ${pc.dim('EXPIRES ON'.padEnd(14))} ${pc.dim('KEY')}`
-  );
-  console.log('─'.repeat(75));
+  const columns = [
+    { header: 'CERTIFICATE NAME', minWidth: 22 },
+    { header: 'SUBJECT / HOSTS', minWidth: 28 },
+    { header: 'EXPIRES ON', minWidth: 16 },
+    { header: 'KEY STORED', minWidth: 12 }
+  ];
 
-  for (const c of certs) {
+  const rows = certs.map(c => {
     const isExpired = c.validTo.getTime() < Date.now();
     const expiryStr = isExpired
       ? pc.red(c.validTo.toLocaleDateString())
       : pc.green(c.validTo.toLocaleDateString());
     const hostsDesc = c.hosts.length > 0 ? c.hosts.join(', ') : c.subject;
-    const hasKey = c.encKeyPem ? pc.green('Yes') : pc.dim('No');
+    const hasKey = c.encKeyPem ? pc.green('● Yes') : pc.dim('No');
 
-    console.log(
-      `${pc.cyan(c.name.padEnd(20))} ${hostsDesc.slice(0, 28).padEnd(30)} ${expiryStr.padEnd(14)} ${hasKey}`
-    );
-  }
+    return [
+      pc.bold(c.name),
+      pc.dim(hostsDesc.slice(0, 26) + (hostsDesc.length > 26 ? '…' : '')),
+      expiryStr,
+      hasKey
+    ];
+  });
+
+  const footer = pc.dim(`Total: ${certs.length} certificate(s) • Use --reveal-key to inspect private key PEM`);
+  renderTable(columns, rows, { footer });
 
   if (options.revealKey) {
     const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
     for (const c of certs) {
       if (c.encKeyPem) {
         const keyPem = await vault.decrypt(c.encKeyPem);
-        console.log(`\n${pc.bold(`--- Private Key for ${c.name} ---`)}`);
-        console.log(keyPem);
+        renderCard({
+          title: `Private Key: ${c.name}`,
+          badge: pc.yellow('● Decrypted'),
+          sections: [{ lines: keyPem.trim().split('\n').map(l => pc.dim(l)) }],
+          footer: pc.dim('Vault Protected Key Pair')
+        });
       }
     }
   }

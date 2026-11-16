@@ -5,6 +5,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
+import { successBanner, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
 export interface RotateOptions extends SecretInputOptions {
@@ -60,6 +61,9 @@ export async function rotateCommand(name: string, options: RotateOptions): Promi
     { expectedVersion, force: options.force }
   );
 
-  console.log(pc.green(`✓ Successfully rotated '${target.name}' to v${expectedVersion + 1}`));
-  console.log(pc.dim(`  Rotation recorded at: ${rotationDate.toLocaleString()}`));
+  successBanner(`Successfully rotated '${target.name}'`, [
+    { key: 'Version', val: `${pc.dim(`v${expectedVersion}`)} → ${pc.bold(`v${expectedVersion + 1}`)}` },
+    { key: 'Environment', val: envBadge(target.environment) },
+    { key: 'Rotated At', val: rotationDate.toLocaleString() }
+  ]);
 }

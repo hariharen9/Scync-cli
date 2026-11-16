@@ -4,6 +4,7 @@ import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { promptConfirm } from '../prompts.js';
+import { successBanner, warningBanner, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
 export interface RmOptions {
@@ -32,11 +33,15 @@ export async function rmCommand(name: string, options: RmOptions): Promise<void>
       false
     );
     if (!confirmed) {
-      console.error(pc.yellow('Aborted deletion.'));
+      warningBanner('Aborted deletion. Secret was not removed.');
       return;
     }
   }
 
   await deleteSecret(session.uid, target.id, target.name, target.service, db);
-  console.log(pc.green(`✓ Deleted secret '${target.name}' (${target.id})`));
+  successBanner(`Deleted secret '${target.name}'`, [
+    { key: 'Vault ID', val: pc.dim(target.id) },
+    { key: 'Environment', val: envBadge(target.environment) },
+    { key: 'Service', val: target.service }
+  ]);
 }

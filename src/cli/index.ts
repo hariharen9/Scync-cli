@@ -356,17 +356,17 @@ export async function runCli(argv = process.argv): Promise<void> {
   try {
     await program.parseAsync(argv);
 
-    // One-shot commands exit cleanly so internal Firebase timers/network handles do not keep the process alive
+    // One-shot commands exit cleanly
     const cmd = argv[2];
     if (!cmd || !['watch', '_agent-daemon'].includes(cmd)) {
-      process.exit(0);
+      process.exitCode = 0;
     }
   } catch (err: any) {
     if (err instanceof CliError) {
-      console.error(pc.red(`Error: ${err.message}`));
+      console.error(`${pc.red('✖ Error:')} ${err.message}`);
       process.exit(err.exitCode);
     } else {
-      console.error(pc.red(`Unexpected error: ${err.message || err}`));
+      console.error(`${pc.red('✖ Unexpected error:')} ${err.message || err}`);
       process.exit(ExitCode.GENERAL_ERROR);
     }
   }

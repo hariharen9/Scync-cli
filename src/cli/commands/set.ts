@@ -8,6 +8,7 @@ import { promptConfirm } from '../prompts.js';
 import { updateCommand } from './update.js';
 import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
 import { parseExpirationDate } from '../../utils/sanitize.js';
+import { successBanner, envBadge, warningBanner } from '../tui.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -48,7 +49,7 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
         false
       );
       if (!confirm) {
-        console.error(pc.yellow('Aborted set operation.'));
+        warningBanner('Aborted set operation. Secret was not modified.');
         return;
       }
     }
@@ -111,6 +112,11 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
     remainingCodes
   }, db);
 
-  console.log(pc.green(`✓ Created secret '${name}' (v1 · ${service} · ${env})`));
-  console.log(pc.dim(`  ID: ${created.id}`));
+  successBanner(`Created secret '${name}'`, [
+    { key: 'Environment', val: envBadge(env) },
+    { key: 'Service', val: service },
+    { key: 'Type', val: type },
+    { key: 'Version', val: pc.dim('v1') },
+    { key: 'Vault ID', val: pc.dim(created.id) }
+  ]);
 }

@@ -8,6 +8,7 @@ import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { parseEnvFile } from '../../utils/env.js';
 import { inferServiceFromName } from '../input.js';
 import { normalizeEnvironment, normalizeSecretType } from '../../core/constants.js';
+import { renderCard, envBadge } from '../tui.js';
 import type { SecretType, Environment, SecretStatus } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -183,14 +184,18 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
     details: `${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped`,
   }, db);
 
-  console.log(pc.bold('\n--- Import Summary ---'));
-  console.log(
-    `Total: ${entries.length} | ` +
-    `${pc.green(`${createdCount} created`)} | ` +
-    `${pc.yellow(`${updatedCount} updated`)} | ` +
-    `${pc.dim(`${skippedCount} skipped`)}` +
-    (errors.length > 0 ? ` | ${pc.red(`${errors.length} failed`)}` : '')
-  );
+  renderCard({
+    title: 'Scync Import Summary',
+    badge: errors.length > 0 ? pc.red(`● ${errors.length} failed`) : pc.green('● Complete'),
+    rows: [
+      { key: 'Environment', val: envBadge(env) },
+      { key: 'Created', val: pc.green(`${createdCount} secret(s) created`) },
+      { key: 'Updated', val: pc.yellow(`${updatedCount} secret(s) updated`) },
+      { key: 'Skipped', val: pc.dim(`${skippedCount} unchanged`) },
+      { key: 'Total Processed', val: `${entries.length} variable(s)` }
+    ],
+    footer: pc.dim('Events recorded in Zero-Knowledge Vault Activity Ledger')
+  });
 
   if (errors.length > 0) {
     throw new CliError(`Import completed with ${errors.length} error(s).`, ExitCode.GENERAL_ERROR);
