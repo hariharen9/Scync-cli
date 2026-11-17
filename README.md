@@ -6,6 +6,9 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
+> **New here?** The [User Guide](./USER_GUIDE.md) is a task-oriented walkthrough
+> (login → unlock → daily usage) — start there if the command reference below feels dense.
+
 ---
 
 ## 🔒 Security Architecture & Zero-Knowledge Guarantee

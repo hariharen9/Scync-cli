@@ -27,6 +27,10 @@ This log tracks architectural and design decisions made during the development o
 - **Decision:** Restore a clean typecheck, compare `EncryptedField.iv`/`ciphertext`, sanitize names/hosts/URLs/services in human-facing output, and implement `minWidth` in `renderTable`. `--no-color` behavior remains delegated to `picocolors`/`NO_COLOR`.
 - **Validation:** `npm run typecheck`, `npm test` (43/43), and `npm run test:emulator` (69/69) all pass. Two stale emulator assertions were corrected: `show --json` now explicitly uses `--reveal` (masked by default), and the TOTP grouping regex allows the intentional double space.
 
+### Decision 22: Guaranteed one-shot process exit
+- **Context:** `runCli` replaced its original `process.exit(0)` with `await closeFirebase()`, but a restored Firebase Auth session keeps a ref'd token-refresh timer alive. Authenticated commands such as `unlock` therefore printed their result and then hung until Ctrl+C, while unauthenticated commands like `lock` exited normally.
+- **Decision:** After `closeFirebase()`, flush `stdout`/`stderr` (so `get --raw | ...` and `pull > .env` cannot truncate) and explicitly exit for one-shot commands. `watch` and `_agent-daemon` remain long-lived. Verified under the Auth emulator: `unlock` exits in ~0.95s (including agent spawn) and `lock` in ~0.35s.
+
 ---
 
 ## 2026-11-15: Initial Architecture & Phase 0 Setup

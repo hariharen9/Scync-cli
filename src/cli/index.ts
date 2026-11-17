@@ -352,6 +352,44 @@ export function createProgram(): Command {
   return program;
 }
 
+/**
+ * Force a one-shot command to terminate once its output has been flushed.
+ *
+ * A restored Firebase Auth session schedules a ref'd token-refresh timer, so
+ * terminating Firestore alone is not enough to let the event loop drain. We
+ * wait for stdout/stderr to finish writing (important for `scync get --raw |
+ * ...` and `scync pull > .env`) and then exit explicitly.
+ */
+function flushAndExit(code: number): void {
+  let exited = false;
+  const exit = () => {
+    if (exited) return;
+    exited = true;
+    process.exit(code);
+  };
+
+  const timer = setTimeout(exit, 2000);
+  if (typeof timer.unref === 'function') timer.unref();
+
+  const streams = [process.stdout, process.stderr];
+  let pending = streams.length;
+  const onFlushed = () => {
+    pending--;
+    if (pending <= 0) {
+      clearTimeout(timer);
+      exit();
+    }
+  };
+
+  for (const stream of streams) {
+    try {
+      stream.write('', onFlushed);
+    } catch {
+      onFlushed();
+    }
+  }
+}
+
 export async function runCli(argv = process.argv): Promise<void> {
   const program = createProgram();
 
@@ -362,6 +400,7 @@ export async function runCli(argv = process.argv): Promise<void> {
     const cmd = argv[2];
     if (!cmd || !['watch', '_agent-daemon'].includes(cmd)) {
       await closeFirebase();
+      flushAndExit(ExitCode.SUCCESS);
     }
   } catch (err: any) {
     try {
@@ -369,10 +408,10 @@ export async function runCli(argv = process.argv): Promise<void> {
     } catch (_) {}
     if (err instanceof CliError) {
       console.error(`${pc.red('✖ Error:')} ${err.message}`);
-      process.exit(err.exitCode);
+      flushAndExit(err.exitCode);
     } else {
       console.error(`${pc.red('✖ Unexpected error:')} ${err.message || err}`);
-      process.exit(ExitCode.GENERAL_ERROR);
+      flushAndExit(ExitCode.GENERAL_ERROR);
     }
   }
 }
