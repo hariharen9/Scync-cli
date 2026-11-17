@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatEnvLine, parseEnvFile, normalizeEnvKey } from '../env.js';
+import {
+  formatEnvLine,
+  parseEnvFile,
+  normalizeEnvKey,
+  dedupeEnvEntries,
+  findEnvKeyCollisions,
+} from '../env.js';
 
 describe('Environment Variable Utilities (.env handling)', () => {
   it('normalizes variable names correctly', () => {
@@ -34,6 +40,23 @@ PORT=8080 # inline comment
     expect(parsed[2]).toEqual({ key: 'PLAIN_VAL', value: 'hello_world' });
     expect(parsed[3]).toEqual({ key: 'NOTE', value: 'Multi\nLine "Quote"' });
     expect(parsed[4]).toEqual({ key: 'PORT', value: '8080' });
+  });
+
+  it('collapses duplicate variable names with last-value-wins semantics', () => {
+    const entries = dedupeEnvEntries([
+      { key: 'API_KEY', value: 'first' },
+      { key: 'api-key', value: 'second' },
+      { key: 'OTHER', value: 'keep' },
+    ]);
+    expect(entries.duplicates).toBe(1);
+    expect(entries.entries).toHaveLength(2);
+    expect(entries.entries.find(e => e.key === 'API_KEY')?.value).toBe('second');
+  });
+
+  it('reports names that normalize to the same .env key', () => {
+    const collisions = findEnvKeyCollisions(['stripe-key', 'STRIPE_KEY', 'OPENAI_KEY']);
+    expect(collisions.get('STRIPE_KEY')).toEqual(['stripe-key', 'STRIPE_KEY']);
+    expect(collisions.has('OPENAI_KEY')).toBe(false);
   });
 
   it('round-trips complex values successfully', () => {

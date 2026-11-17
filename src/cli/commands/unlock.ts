@@ -6,7 +6,7 @@ import { AgentClient } from '../../agent/client.js';
 import { promptMasterPassword } from '../prompts.js';
 import { loadConfig, parseDurationMs } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
-import { renderCard, successBanner, infoBanner } from '../tui.js';
+import { renderCard, successBanner, infoBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface UnlockOptions {
@@ -66,6 +66,14 @@ export async function unlockCommand(options: UnlockOptions = {}): Promise<void> 
       { key: 'Encryption', val: 'AES-256-GCM / PBKDF2' }
     ]);
   } else {
+    const agentStatus = await agentClient.getStatus(1000);
+    if (!agentStatus || agentStatus.status !== 'unlocked') {
+      warningBanner('Key verified, but the background agent is not running.', [
+        { key: 'Custody', val: 'In-process session only (key is discarded when this command exits)' },
+        { key: 'Next Step', val: 'Re-run with agent support, or set SCYNC_NO_AGENT=1 to silence this' }
+      ]);
+      return;
+    }
     renderCard({
       title: 'Scync Vault Session',
       badge: pc.green('● Unlocked'),

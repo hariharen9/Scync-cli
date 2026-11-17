@@ -5,15 +5,32 @@ import os from 'node:os';
 import {
   parseDurationMs,
   loadConfig,
-  saveConfig,
   setConfigValue,
   getConfigValue,
   unsetConfigValue,
-  getConfigPath,
+  getClipboardTimeoutSecs,
+  getDefaultScope,
 } from '../index.js';
 
 describe('CLI Configuration Layer', () => {
-  const originalConfig = loadConfig();
+  let testDir: string;
+  let originalScyncDir: string | undefined;
+
+  beforeEach(() => {
+    originalScyncDir = process.env.SCYNC_DIR;
+    testDir = path.join(os.tmpdir(), `scync-cli-config-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    process.env.SCYNC_DIR = testDir;
+  });
+
+  afterEach(() => {
+    if (originalScyncDir === undefined) delete process.env.SCYNC_DIR;
+    else process.env.SCYNC_DIR = originalScyncDir;
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  });
 
   it('correctly parses human-friendly duration strings', () => {
     expect(parseDurationMs('30s', 1000)).toBe(30 * 1000);
@@ -35,8 +52,25 @@ describe('CLI Configuration Layer', () => {
     expect(getConfigValue('default.project')).toBeUndefined();
   });
 
-  afterEach(() => {
-    // Restore original config
-    saveConfig(originalConfig);
+  it('resolves clipboard timeout from duration strings and bare seconds', () => {
+    expect(getClipboardTimeoutSecs()).toBe(30);
+
+    setConfigValue('clipboard.timeout', '45s');
+    expect(getClipboardTimeoutSecs()).toBe(45);
+
+    setConfigValue('clipboard.timeout', '15');
+    expect(getClipboardTimeoutSecs()).toBe(15);
+
+    setConfigValue('clipboard.timeout', '0');
+    expect(getClipboardTimeoutSecs()).toBe(0);
+  });
+
+  it('exposes default project/environment scope', () => {
+    expect(getDefaultScope()).toEqual({ project: undefined, env: undefined });
+
+    setConfigValue('default.project', 'proj-omega');
+    setConfigValue('default.env', 'Production');
+    expect(getDefaultScope()).toEqual({ project: 'proj-omega', env: 'Production' });
+    expect(loadConfig()).toMatchObject({ 'default.project': 'proj-omega', 'default.env': 'Production' });
   });
 });

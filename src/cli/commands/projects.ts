@@ -3,6 +3,7 @@ import { getProjects, getSecrets } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { renderTable } from '../tui.js';
+import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import pc from 'picocolors';
 
 export interface ProjectsOptions {
@@ -46,10 +47,10 @@ export async function projectsCommand(options: ProjectsOptions = {}): Promise<vo
   const rows = projects.map(p => {
     const count = secretCounts[p.id] || 0;
     return [
-      pc.bold(p.name),
+      pc.bold(sanitizeTerminalOutput(p.name)),
       pc.dim(p.id),
       count > 0 ? pc.green(String(count)) : pc.dim('0'),
-      pc.cyan(`● ${p.color || 'blue'}`)
+      pc.cyan(`● ${sanitizeTerminalOutput(p.color || 'blue')}`)
     ];
   });
 

@@ -4,6 +4,7 @@ import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
+import type { SecretVersion } from '../../core/types.js';
 import { successBanner, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
@@ -32,10 +33,10 @@ export async function restoreCommand(name: string, versionArg: string, options: 
     env: options.env
   });
   const versions = target.versions || [];
-  const targetVer = versions.find(v => v.version === targetVerNum);
+  const targetVer = versions.find((v: SecretVersion) => v.version === targetVerNum);
 
   if (!targetVer) {
-    const available = versions.map(v => `v${v.version}`).join(', ') || 'none';
+    const available = versions.map((v: SecretVersion) => `v${v.version}`).join(', ') || 'none';
     throw new CliError(
       `Version ${targetVerNum} not found in history for secret '${target.name}'. Available versions: ${available}`,
       ExitCode.NOT_FOUND

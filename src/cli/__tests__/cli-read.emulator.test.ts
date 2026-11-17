@@ -206,7 +206,7 @@ describe('Phase 1 CLI Read Commands & Workflows (Emulator Integration)', () => {
 
     try {
       const program = createProgram();
-      await program.parseAsync(['node', 'scync', 'show', 'DATABASE_URL', '--json']);
+      await program.parseAsync(['node', 'scync', 'show', 'DATABASE_URL', '--json', '--reveal']);
       const data = JSON.parse(logs.join(''));
       expect(data.name).toBe('DATABASE_URL');
       expect(data.service).toBe('Supabase');

@@ -5,7 +5,7 @@ _scync_completions() {
   local cur prev commands
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  commands="login logout whoami status unlock lock ls get show set update rotate restore rm pull push run watch config completion"
+  commands="login logout whoami status unlock lock ls get show set update edit rotate restore rm pull export projects push import run watch config completion totp ssh passwords pass certs certificates"
 
   case "\${prev}" in
     get|show|update|rotate|restore|rm)
@@ -52,10 +52,15 @@ _scync() {
     'rm:Delete secret'
     'pull:Export secrets to .env file'
     'push:Import secrets from .env file'
+    'projects:List vault projects'
     'run:Run command with secrets injected into environment'
     'watch:Observe secret changes in real time'
     'config:Manage local CLI configuration'
     'completion:Generate shell autocompletion script'
+    'totp:Generate or list TOTP codes'
+    'ssh:Manage vaulted SSH keys'
+    'passwords:Search stored website passwords'
+    'certs:Inspect SSL/TLS certificates'
   )
 
   _arguments -C \\
@@ -80,7 +85,8 @@ Register-ArgumentCompleter -Native -CommandName scync -ScriptBlock {
     $commands = @(
         'login', 'logout', 'whoami', 'status', 'unlock', 'lock',
         'ls', 'get', 'show', 'set', 'update', 'rotate', 'restore', 'rm',
-        'pull', 'push', 'run', 'watch', 'config', 'completion'
+        'pull', 'push', 'projects', 'run', 'watch', 'config', 'completion',
+        'totp', 'ssh', 'passwords', 'certs'
     )
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
         [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
@@ -103,7 +109,7 @@ export async function completionCommand(shell?: string): Promise<void> {
       console.log(generatePowerShellCompletion());
       break;
     case 'fish':
-      console.log('complete -c scync -f -a "login logout whoami status unlock lock ls get show set update rotate restore rm pull push run watch config completion"');
+      console.log('complete -c scync -f -a "login logout whoami status unlock lock ls get show set update rotate restore rm pull push projects run watch config completion totp ssh passwords certs"');
       break;
     default:
       console.error(`Unsupported shell: ${shell}. Supported shells: bash, zsh, fish, powershell`);

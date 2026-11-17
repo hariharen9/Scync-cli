@@ -4,6 +4,7 @@ import { getTOTPTokens } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { generateTOTPCode, getRemainingSeconds } from '../../core/totp.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
+import { getClipboardTimeoutSecs } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { renderTable, renderCard, renderProgressBar, successBanner } from '../tui.js';
 import pc from 'picocolors';
@@ -121,9 +122,13 @@ export async function totpCommand(nameQuery?: string, options: TOTPOptions = {})
   });
 
   if (options.copy) {
-    await copyWithAutoClear(code, 30);
+    const clipboardSecs = getClipboardTimeoutSecs();
+    await copyWithAutoClear(code, clipboardSecs);
     successBanner('TOTP Code copied to clipboard', [
-      { key: 'Auto-Clear', val: 'Clears in 30 seconds' }
+      {
+        key: 'Auto-Clear',
+        val: clipboardSecs > 0 ? `Clears in ${clipboardSecs} seconds` : 'Disabled'
+      }
     ]);
   }
 }

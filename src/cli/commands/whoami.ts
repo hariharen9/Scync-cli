@@ -33,7 +33,7 @@ export async function whoamiCommand(options: WhoamiOptions): Promise<void> {
 
   renderCard({
     title: 'Scync Identity',
-    badge: pc.green('● Session Valid'),
+    badge: isExpired ? pc.red('● Session Expired') : pc.green('● Session Valid'),
     rows: [
       { key: 'Account', val: pc.bold(session.email || session.displayName || 'Authenticated User') },
       { key: 'Firebase UID', val: pc.dim(session.uid) },

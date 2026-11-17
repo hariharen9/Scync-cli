@@ -59,7 +59,7 @@ export function createProgram(): Command {
     .option('--no-browser', 'Do not open browser automatically')
     .option('--port <port>', 'Local port for OAuth callback redirect')
     .action(async (opts) => {
-      await loginCommand(opts);
+      await loginCommand({ ...opts, noBrowser: opts.browser === false });
     });
 
   program
@@ -92,7 +92,7 @@ export function createProgram(): Command {
     .option('--timeout <duration>', 'Idle timeout duration (e.g. 15m, 1h, default: 15m)')
     .option('--no-agent', 'Verify password in-process without launching background agent')
     .action(async (opts) => {
-      await unlockCommand(opts);
+      await unlockCommand({ ...opts, noAgent: opts.agent === false });
     });
 
   program
@@ -247,6 +247,7 @@ export function createProgram(): Command {
     .option('-t, --type <type>', 'Secret type (default: Secret Key)')
     .option('--overwrite', 'Overwrite existing secrets with matching names in target environment')
     .option('--dry-run', 'Preview changes without modifying the vault')
+    .option('-f, --force', 'Bypass optimistic concurrency checks when overwriting')
     .action(async (file, opts) => {
       await pushCommand(file, opts);
     });
@@ -261,7 +262,7 @@ export function createProgram(): Command {
     .option('--no-agent', 'Do not use background agent for key custody')
     .passThroughOptions()
     .action(async (cmd, opts) => {
-      await runCommand(cmd, opts);
+      await runCommand(cmd, { ...opts, noAgent: opts.agent === false });
     });
 
   program
@@ -273,7 +274,7 @@ export function createProgram(): Command {
     .option('--reveal', 'Decrypt and show plaintext values on change')
     .option('--no-agent', 'Do not use background agent')
     .action(async (opts) => {
-      await watchCommand(opts);
+      await watchCommand({ ...opts, noAgent: opts.agent === false });
     });
 
   // --- Configuration & Shell ---
@@ -299,7 +300,7 @@ export function createProgram(): Command {
     .option('--json', 'Output details as JSON')
     .option('--no-agent', 'Do not use background agent')
     .action(async (name, opts) => {
-      await totpCommand(name, opts);
+      await totpCommand(name, { ...opts, noAgent: opts.agent === false });
     });
 
   program
@@ -310,7 +311,7 @@ export function createProgram(): Command {
     .option('--json', 'Output details as JSON')
     .option('--no-agent', 'Do not use background agent')
     .action(async (action, name, opts) => {
-      await sshCommand(action, name, opts);
+      await sshCommand(action, name, { ...opts, noAgent: opts.agent === false });
     });
 
   program
@@ -322,7 +323,7 @@ export function createProgram(): Command {
     .option('--json', 'Output details as JSON')
     .option('--no-agent', 'Do not use background agent')
     .action(async (query, opts) => {
-      await passwordsCommand(query, opts);
+      await passwordsCommand(query, { ...opts, noAgent: opts.agent === false });
     });
 
   program
@@ -333,7 +334,7 @@ export function createProgram(): Command {
     .option('--json', 'Output details as JSON')
     .option('--no-agent', 'Do not use background agent')
     .action(async (query, opts) => {
-      await certsCommand(query, opts);
+      await certsCommand(query, { ...opts, noAgent: opts.agent === false });
     });
 
   // --- Internal Daemon ---

@@ -3,6 +3,7 @@ import { getSecrets, resolveProjectId } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
+import { getDefaultScope } from '../../config/index.js';
 import { renderTable, envBadge, statusBadge } from '../tui.js';
 import pc from 'picocolors';
 
@@ -23,14 +24,18 @@ export async function lsCommand(options: LsOptions): Promise<void> {
   const db = getDb();
   let secrets = await getSecrets(session.uid, db);
 
+  const defaults = getDefaultScope();
+  const projectFilter = options.project ?? defaults.project;
+  const envFilter = options.env ?? defaults.env;
+
   // Apply filters
-  if (options.project) {
-    const resolvedProj = await resolveProjectId(session.uid, options.project, db);
+  if (projectFilter) {
+    const resolvedProj = await resolveProjectId(session.uid, projectFilter, db);
     const projLower = resolvedProj.toLowerCase();
     secrets = secrets.filter(s => s.projectId?.toLowerCase() === projLower);
   }
-  if (options.env) {
-    const envLower = options.env.toLowerCase();
+  if (envFilter) {
+    const envLower = envFilter.toLowerCase();
     secrets = secrets.filter(s => s.environment.toLowerCase() === envLower);
   }
   if (options.service) {
@@ -101,7 +106,10 @@ export async function lsCommand(options: LsOptions): Promise<void> {
 
   const projectsCount = new Set(secrets.map(s => s.projectId).filter(Boolean)).size;
   const projectSummary = projectsCount > 0 ? ` across ${projectsCount} project(s)` : '';
-  const footer = pc.dim(`Showing ${secrets.length} secret(s)${projectSummary} • 🔒 Vault Encrypted (AES-256-GCM)`);
+  const defaultSummary = (options.project === undefined && defaults.project) || (options.env === undefined && defaults.env)
+    ? ` • defaults: ${defaults.project || 'any project'}/${defaults.env || 'any env'}`
+    : '';
+  const footer = pc.dim(`Showing ${secrets.length} secret(s)${projectSummary}${defaultSummary} • 🔒 Vault Encrypted (AES-256-GCM)`);
 
   renderTable(columns, rows, { footer, emptyMessage: 'No secrets found matching specified criteria.' });
 }

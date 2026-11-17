@@ -6,7 +6,7 @@ import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { maskSecretValue, sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import { renderCard, CardRow, CardSection, envBadge, statusBadge } from '../tui.js';
-import type { RecoveryCodeSet } from '../../core/types.js';
+import type { RecoveryCodeSet, SecretVersion } from '../../core/types.js';
 import pc from 'picocolors';
 
 export interface ShowOptions {
@@ -52,7 +52,7 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
       expiresOn: decrypted.expiresOn ? decrypted.expiresOn.toISOString() : null,
       value: options.reveal ? decrypted.value : maskSecretValue(decrypted.value),
       notes: decrypted.notes || null,
-      versions: decrypted.versions?.map(v => ({
+      versions: decrypted.versions?.map((v: SecretVersion) => ({
         version: v.version,
         changeType: v.changeType,
         createdAt: v.createdAt.toISOString(),
@@ -115,7 +115,7 @@ export async function showCommand(name: string, options: ShowOptions): Promise<v
 
   // Version History Section
   if (target.versions && target.versions.length > 0) {
-    const historyLines = target.versions.map(v => {
+    const historyLines = target.versions.map((v: SecretVersion) => {
       const action = pc.cyan(v.changeType || 'updated');
       const date = pc.dim(v.createdAt.toLocaleDateString());
       const note = v.note ? pc.dim(`· ${v.note}`) : '';

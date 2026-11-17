@@ -5,6 +5,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
+import { getClipboardTimeoutSecs } from '../../config/index.js';
 import { maskSecretValue, sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import { renderCard, envBadge, statusBadge, successBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
@@ -42,10 +43,14 @@ export async function getCommand(name: string, options: GetOptions): Promise<voi
 
   // 4. Handle Clipboard copy if requested
   if (options.copy) {
-    const copied = copyWithAutoClear(decrypted.value, 30);
+    const clipboardSecs = getClipboardTimeoutSecs();
+    const copied = copyWithAutoClear(decrypted.value, clipboardSecs);
     if (copied) {
       successBanner(`Copied value of '${sanitizeTerminalOutput(target.name)}' to clipboard`, [
-        { key: 'Clipboard TTL', val: 'Auto-clears in 30 seconds' },
+        {
+          key: 'Clipboard TTL',
+          val: clipboardSecs > 0 ? `Auto-clears in ${clipboardSecs} seconds` : 'Auto-clear disabled'
+        },
         { key: 'Integrity', val: 'SHA-256 fingerprint verified' }
       ]);
     } else {

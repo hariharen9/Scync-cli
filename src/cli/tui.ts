@@ -183,6 +183,7 @@ export function warningBanner(title: string, details?: Array<{ key: string; val:
 export interface TableColumn {
   header: string;
   width?: number;
+  minWidth?: number;
   align?: 'left' | 'right';
 }
 
@@ -204,7 +205,7 @@ export function renderTable(
       const cellLen = visibleLength(cell);
       if (cellLen > maxContent) maxContent = cellLen;
     }
-    const width = col.width ? Math.max(col.width, maxContent) : maxContent;
+    const width = Math.max(col.width ?? 0, col.minWidth ?? 0, maxContent);
     return {
       header: col.header,
       width,

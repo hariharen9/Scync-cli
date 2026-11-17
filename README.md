@@ -2,7 +2,7 @@
 
 > Zero-knowledge developer secrets manager CLI. Interoperable with the [Scync](https://github.com/scync) web client.
 
-[![Tests](https://img.shields.io/badge/tests-94%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-43%20passed-brightgreen.svg)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -23,7 +23,7 @@
 4. **Stream Discipline & Leaks Prevention:**
    - Prompts and warnings always target `stderr`.
    - In pipe mode (`!stdout.isTTY` or `--raw`), `scync get` writes **only** the raw plaintext secret without newlines or terminal formatting.
-   - Clipboard copies are cleared automatically after 30 seconds via a non-blocking detached background process.
+   - Clipboard copies are cleared automatically after a configurable timeout (30 seconds by default) via a non-blocking detached background process.
    - Subprocess execution (`scync run`) injects secrets directly into child process memory without writing `.env` files to disk.
 
 ---
@@ -78,7 +78,7 @@ scync show OPENAI_API_KEY
 scync get OPENAI_API_KEY
 scync get OPENAI_API_KEY --reveal
 
-# Copy to clipboard with automatic 30s auto-clear
+# Copy to clipboard with automatic 30s auto-clear (configurable)
 scync get OPENAI_API_KEY --copy
 
 # Pipe directly to other tools
@@ -141,7 +141,7 @@ scync lock
 ### Secrets Management
 | Command | Options | Description |
 |---|---|---|
-| `scync ls` | `--project`, `--env`, `--service`, `--type`, `--status`, `--json` | List vaulted secrets without decrypting payloads. |
+| `scync ls` | `--project`, `--env`, `--service`, `--type`, `--status`, `--json` | List vaulted secrets without decrypting payloads. Falls back to configured `default.project` / `default.env`. |
 | `scync get <name>` | `--reveal`, `--copy`, `--raw`, `--project`, `--env`, `--id` | Decrypt and output a secret. Raw/pipe clean. |
 | `scync show <name>` | `--project`, `--env`, `--json` | Display secret metadata, decrypted notes, and version history ledger. |
 | `scync set <name>` | `--value`, `--file`, `--project`, `--env`, `--service`, `--type`, `--notes` | Create a secret (v1) or update existing with confirmation. |
@@ -155,9 +155,9 @@ scync lock
 |---|---|---|
 | `scync run -- <cmd>` | `--project`, `--env` | Run subprocess with decrypted secrets injected into `process.env`. |
 | `scync pull` / `export` | `--output <file>`, `--project`, `--env`, `--force` | Export active secrets to `.env` (enforces `0600` permissions). |
-| `scync push` / `import` | `[file]`, `--dry-run`, `--overwrite`, `--project`, `--env` | Import variables from `.env` file with preview and rollback safety. |
+| `scync push` / `import` | `[file]`, `--dry-run`, `--overwrite`, `--force`, `--project`, `--env`, `--type` | Import variables from `.env` file; duplicate keys collapse with last-value-wins. |
 | `scync watch` | `--project`, `--env`, `--reveal` | Real-time Firestore sync stream (`onSnapshot`) logging added/modified/removed secrets. |
-| `scync config` | `[action] [key] [value]` | View or modify local CLI preferences in `~/.scync/config.json`. |
+| `scync config` | `[action] [key] [value]` | View or modify local CLI preferences in `~/.scync/config.json` (`default.project`, `default.env`, `agent.timeout`, `clipboard.timeout`, `output.format`). |
 | `scync completion` | `<shell>` | Generate shell completions for `bash`, `zsh`, `fish`, or `powershell`. |
 
 ### Specialized Data Types
@@ -174,13 +174,13 @@ scync lock
 
 `scync-cli` follows standard POSIX exit codes:
 - `0`: Success.
-- `1`: General error.
+- `1`: General error / usage error.
 - `2`: `AUTH_REQUIRED` — Not logged in or session revoked (`scync login` needed).
-- `3`: `NOT_FOUND` — Secret or project not found.
-- `4`: `VAULT_LOCKED` — Master password or `scync unlock` needed.
-- `5`: `AMBIGUOUS_MATCH` — Multiple secrets matched name; specify `--project` or `--env`.
-- `6`: `CONFLICT` — Remote secret version changed concurrently.
-- `7`: `VALIDATION_ERROR` — Invalid arguments or malformed secret shape.
+- `3`: `VAULT_LOCKED` — Master password or `scync unlock` needed.
+- `4`: `NOT_FOUND` — Secret, version, SSH key, or project not found.
+- `5`: `AMBIGUOUS_MATCH` — Multiple secrets matched name; specify `--project`, `--env`, or `--id`.
+- `6`: `CONFLICT` — Remote secret version changed concurrently (use `--force` to override).
+- `7`: `NETWORK_ERROR` — Reserved for connectivity/backend failures.
 
 ---
 
@@ -190,14 +190,14 @@ scync lock
 ```bash
 npm test
 ```
-*(Runs 8 suites, 34/34 tests passing).*
+*(Runs 9 suites, 43/43 tests passing).*
 
 ### Run Emulator Integration Tests
 Requires Firebase CLI (`npm install -g firebase-tools`):
 ```bash
 npm run test:emulator
 ```
-*(Executes against Firebase Local Emulator Suite Auth `:9099` and Firestore `:8080`, 14 suites, 60/60 tests passing).*
+*(Executes against Firebase Local Emulator Suite Auth `:9099` and Firestore `:8080`; 15 suites, 69/69 tests passing).*
 
 ### Run Live Vault Smoke Test
 ```bash

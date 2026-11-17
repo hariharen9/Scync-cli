@@ -148,7 +148,7 @@ describe('Phase 4 CLI Specialized Types (Emulator Integration)', () => {
 
     expect(captured).toContain('GitHub');
     expect(captured).toContain('octocat');
-    expect(captured).toMatch(/\d{3}\s\d{3}/); // formatted 6-digit code e.g. 123 456
+    expect(captured).toMatch(/\d{3}\s+\d{3}/); // formatted 6-digit code e.g. 123  456
   });
 
   it('scync ssh lists keys, exports with mode 0600, and generates config', async () => {

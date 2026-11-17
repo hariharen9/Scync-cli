@@ -75,3 +75,27 @@ export function unsetConfigValue(key: string): boolean {
   }
   return false;
 }
+
+/**
+ * Clipboard auto-clear timeout in seconds (default 30). `0` disables auto-clear.
+ */
+export function getClipboardTimeoutSecs(): number {
+  const raw = loadConfig()['clipboard.timeout'];
+  if (raw === undefined || raw === null || raw === '') return 30;
+  // Allow a bare number of seconds in addition to duration strings ("30s", "1m").
+  if (/^\d+$/.test(String(raw).trim())) return parseInt(String(raw).trim(), 10);
+  const ms = parseDurationMs(String(raw), 30_000);
+  return Math.max(0, Math.round(ms / 1000));
+}
+
+/**
+ * Default project/environment filters applied to bulk commands when no
+ * explicit flag is supplied.
+ */
+export function getDefaultScope(): { project?: string; env?: string } {
+  const config = loadConfig();
+  return {
+    project: config['default.project'] || undefined,
+    env: config['default.env'] || undefined,
+  };
+}

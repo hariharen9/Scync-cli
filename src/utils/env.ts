@@ -18,6 +18,41 @@ export function normalizeEnvKey(name: string): string {
 }
 
 /**
+ * Collapses duplicate variable names in a parsed .env file.
+ * Later entries win (matching shell dotenv semantics) and the number of
+ * discarded duplicate lines is returned so callers can warn the user.
+ */
+export function dedupeEnvEntries(entries: EnvEntry[]): { entries: EnvEntry[]; duplicates: number } {
+  const byKey = new Map<string, EnvEntry>();
+  let duplicates = 0;
+  for (const entry of entries) {
+    const key = normalizeEnvKey(entry.key);
+    if (byKey.has(key)) duplicates++;
+    byKey.set(key, { ...entry, key });
+  }
+  return { entries: Array.from(byKey.values()), duplicates };
+}
+
+/**
+ * Finds secret names that normalize to the same environment variable name,
+ * which would otherwise silently overwrite each other in a .env export.
+ */
+export function findEnvKeyCollisions(keys: string[]): Map<string, string[]> {
+  const byNorm = new Map<string, string[]>();
+  for (const key of keys) {
+    const norm = normalizeEnvKey(key);
+    const group = byNorm.get(norm);
+    if (group) group.push(key);
+    else byNorm.set(norm, [key]);
+  }
+  const collisions = new Map<string, string[]>();
+  for (const [norm, originals] of byNorm) {
+    if (originals.length > 1) collisions.set(norm, originals);
+  }
+  return collisions;
+}
+
+/**
  * Safely formats a key-value pair for a .env file.
  */
 export function formatEnvLine(key: string, value: string): string {

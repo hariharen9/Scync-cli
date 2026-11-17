@@ -1,4 +1,4 @@
-import { SecretMetadata } from '../core/types.js';
+import type { StoredSecret } from '../core/types.js';
 import { SecretNotFoundError, AmbiguousSecretError } from './errors.js';
 
 export interface ResolveSecretOptions {
@@ -13,10 +13,10 @@ export interface ResolveSecretOptions {
  * Throws `AmbiguousSecretError` if multiple secrets match.
  */
 export function resolveSingleSecret(
-  secrets: SecretMetadata[],
+  secrets: StoredSecret[],
   name: string,
   options: ResolveSecretOptions = {}
-): SecretMetadata {
+): StoredSecret {
   let matches = secrets.filter(s => s.name.toLowerCase() === name.toLowerCase());
 
   if (options.id) {

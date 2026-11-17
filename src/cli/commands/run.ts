@@ -144,7 +144,7 @@ export async function runCommand(cmdArgs: string[], options: RunOptions = {}): P
     child.on('error', (err) => {
       process.removeListener('SIGINT', forwardSigint);
       process.removeListener('SIGTERM', forwardSigterm);
-      reject(new CliError(`Failed to execute '${binary}': ${err.message}`, ExitCode.GENERAL_ERROR));
+      reject(new CliError(`Failed to execute '${rawBinary}': ${err.message}`, ExitCode.GENERAL_ERROR));
     });
 
     child.on('close', (code, signal) => {

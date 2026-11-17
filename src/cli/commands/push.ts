@@ -5,9 +5,11 @@ import { getSecrets, createSecret, updateSecret, decryptSecret, logLedgerEvent, 
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
-import { parseEnvFile } from '../../utils/env.js';
+import { parseEnvFile, dedupeEnvEntries } from '../../utils/env.js';
 import { inferServiceFromName } from '../input.js';
 import { normalizeEnvironment, normalizeSecretType } from '../../core/constants.js';
+import { getDefaultScope } from '../../config/index.js';
+import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import { renderCard, envBadge } from '../tui.js';
 import type { SecretType, Environment, SecretStatus } from '../../core/types.js';
 import pc from 'picocolors';
@@ -19,6 +21,7 @@ export interface PushOptions {
   type?: string;
   overwrite?: boolean;
   dryRun?: boolean;
+  force?: boolean;
 }
 
 export async function pushCommand(fileArg?: string, options: PushOptions = {}): Promise<void> {
@@ -45,18 +48,26 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
     throw new CliError('Please specify a .env file to import: scync push <file.env>', ExitCode.GENERAL_ERROR);
   }
 
-  // 2. Parse entries
-  const entries = parseEnvFile(content);
-  if (entries.length === 0) {
+  // 2. Parse entries and collapse duplicate variable names (last value wins)
+  const parsedEntries = parseEnvFile(content);
+  if (parsedEntries.length === 0) {
     console.error(pc.yellow('No valid environment variables found in input.'));
     return;
+  }
+  const { entries, duplicates } = dedupeEnvEntries(parsedEntries);
+  if (duplicates > 0) {
+    console.error(pc.yellow(`Warning: ${duplicates} duplicate variable name(s) collapsed (last value wins).`));
   }
 
   const db = getDb();
   const allSecrets = await getSecrets(session.uid, db);
 
-  const env = options.env ? normalizeEnvironment(options.env) : 'Development';
-  const project = options.project ? await resolveProjectId(session.uid, options.project, db) : null;
+  const defaults = getDefaultScope();
+  const env = options.env
+    ? normalizeEnvironment(options.env)
+    : (defaults.env ? normalizeEnvironment(defaults.env) : 'Development');
+  const projectInput = options.project ?? defaults.project;
+  const project = projectInput ? await resolveProjectId(session.uid, projectInput, db) : null;
   const secType = options.type ? normalizeSecretType(options.type) : 'Secret Key';
 
   // 3. Dry-run simulation
@@ -74,15 +85,16 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
       );
 
       const srv = options.service || inferServiceFromName(item.key);
+      const safeKey = sanitizeTerminalOutput(item.key);
 
       if (!match) {
-        console.log(`${pc.green('[CREATE]'.padEnd(10))} ${pc.bold(item.key.padEnd(24))} (${srv})`);
+        console.log(`${pc.green('[CREATE]'.padEnd(10))} ${pc.bold(safeKey.padEnd(24))} (${srv})`);
         wouldCreate++;
       } else if (options.overwrite) {
-        console.log(`${pc.yellow('[UPDATE]'.padEnd(10))} ${pc.bold(item.key.padEnd(24))} (v${(match.version || 1) + 1})`);
+        console.log(`${pc.yellow('[UPDATE]'.padEnd(10))} ${pc.bold(safeKey.padEnd(24))} (v${(match.version || 1) + 1})`);
         wouldUpdate++;
       } else {
-        console.log(`${pc.dim('[SKIP]'.padEnd(10))}   ${item.key.padEnd(24)} (already exists, use --overwrite)`);
+        console.log(`${pc.dim('[SKIP]'.padEnd(10))}   ${safeKey.padEnd(24)} (already exists, use --overwrite)`);
         wouldSkip++;
       }
     }
@@ -108,7 +120,7 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
     );
 
     const srv = options.service || inferServiceFromName(item.key);
-    const secType = (options.type || 'Secret Key') as SecretType;
+    const safeKey = sanitizeTerminalOutput(item.key);
 
     if (!match) {
       // Create new secret
@@ -127,10 +139,10 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
           remainingCodes: null
         }, db);
         createdCount++;
-        console.log(`${pc.green('✓')} Created ${pc.bold(item.key)}`);
+        console.log(`${pc.green('✓')} Created ${pc.bold(safeKey)}`);
       } catch (err: any) {
         errors.push({ key: item.key, error: err.message });
-        console.error(`${pc.red('✗')} Failed to create ${item.key}: ${err.message}`);
+        console.error(`${pc.red('✗')} Failed to create ${safeKey}: ${err.message}`);
       }
     } else if (options.overwrite) {
       // Update existing secret - preserve existing notes by decrypting if present
@@ -167,10 +179,10 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
           { force: options.force || false }
         );
         updatedCount++;
-        console.log(`${pc.yellow('✓')} Updated ${pc.bold(item.key)} to v${(match.version || 1) + 1}`);
+        console.log(`${pc.yellow('✓')} Updated ${pc.bold(safeKey)} to v${(match.version || 1) + 1}`);
       } catch (err: any) {
         errors.push({ key: item.key, error: err.message });
-        console.error(`${pc.red('✗')} Failed to update ${item.key}: ${err.message}`);
+        console.error(`${pc.red('✗')} Failed to update ${safeKey}: ${err.message}`);
       }
     } else {
       skippedCount++;

@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getValidSession } from '../../auth/session.js';
-import { getSecrets, decryptSecret, resolveProjectId } from '../../core/firestore.js';
+import { getSecrets, decryptSecret, resolveProjectId, logLedgerEvent } from '../../core/firestore.js';
 import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError } from '../errors.js';
-import { formatEnvLine } from '../../utils/env.js';
+import { formatEnvLine, findEnvKeyCollisions } from '../../utils/env.js';
+import { getDefaultScope } from '../../config/index.js';
 import { promptConfirm } from '../prompts.js';
 import { successBanner, envBadge, warningBanner } from '../tui.js';
 import pc from 'picocolors';
@@ -41,6 +42,9 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
   if (typeof fileOrOpts === 'string') {
     file = fileOrOpts;
     options = maybeOpts || {};
+  } else if (maybeOpts !== undefined) {
+    // Commander passes (undefined, options) when no positional file is given.
+    options = maybeOpts;
   } else {
     options = fileOrOpts || {};
   }
@@ -51,14 +55,18 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
   const db = getDb();
   let secrets = await getSecrets(session.uid, db);
 
+  const defaults = getDefaultScope();
+  const projectFilter = options.project ?? defaults.project;
+  const envFilter = options.env ?? defaults.env;
+
   // Filter by project and environment
-  if (options.project) {
-    const resolvedProj = await resolveProjectId(session.uid, options.project, db);
+  if (projectFilter) {
+    const resolvedProj = await resolveProjectId(session.uid, projectFilter, db);
     const p = resolvedProj.toLowerCase();
     secrets = secrets.filter(s => s.projectId?.toLowerCase() === p);
   }
-  if (options.env) {
-    const e = options.env.toLowerCase();
+  if (envFilter) {
+    const e = envFilter.toLowerCase();
     secrets = secrets.filter(s => s.environment.toLowerCase() === e);
   }
 
@@ -75,13 +83,24 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
 
   const lines: string[] = [
     `# Exported from Scync (${new Date().toISOString()})`,
-    options.project ? `# Project: ${options.project}` : '',
-    options.env ? `# Environment: ${options.env}` : '',
+    projectFilter ? `# Project: ${projectFilter}` : '',
+    envFilter ? `# Environment: ${envFilter}` : '',
     ''
   ].filter(Boolean);
 
   // Sort alphabetically
   secrets.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Flag names that collapse to the same environment variable key, since only
+  // one of them can win when the file is parsed.
+  const collisions = findEnvKeyCollisions(secrets.map(s => s.name));
+  for (const [normKey, originals] of collisions) {
+    console.error(
+      pc.yellow(
+        `⚠️  Warning: ${originals.map(n => `'${n}'`).join(', ')} all map to ${normKey}; only one value will survive.`
+      )
+    );
+  }
 
   for (const s of secrets) {
     const decrypted = await decryptSecret(vault, s);
@@ -130,8 +149,13 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
 
   // Write with owner-only permissions (0600) and explicit utf8
   fs.writeFileSync(targetPath, content, { mode: 0o600, encoding: 'utf8' });
+  await logLedgerEvent(session.uid, {
+    action: 'env_exported',
+    title: `Exported ${secrets.length} secret(s) to ${path.basename(targetPath)}`,
+    details: `${envFilter || 'all environments'}${projectFilter ? ` · ${projectFilter}` : ''}`,
+  }, db);
   successBanner(`Exported ${secrets.length} secret(s) to '${outputPath}'`, [
-    { key: 'Environment', val: envBadge(options.env || 'All') },
+    { key: 'Environment', val: envBadge(envFilter || 'All') },
     { key: 'File Permissions', val: 'chmod 0600 (owner-only, UTF-8)' },
     { key: 'Format', val: 'POSIX Dotenv (.env)' }
   ]);

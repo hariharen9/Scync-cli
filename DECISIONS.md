@@ -4,6 +4,31 @@ This log tracks architectural and design decisions made during the development o
 
 ---
 
+## 2026-11-17: Correctness, DX & Configuration Hardening
+
+### Decision 17: Fix Commander negatable option handling
+- **Context:** `--no-agent` and `--no-browser` were declared with Commander's negatable syntax, which populates `agent: false` / `browser: false`, but every command read `options.noAgent` / `options.noBrowser`. Both flags were silently ignored, so the agent-free/paranoid mode was unreachable.
+- **Decision:** Normalize at the CLI boundary (`noAgent: opts.agent === false`, `noBrowser: opts.browser === false`) for `login`, `unlock`, `run`, `watch`, `totp`, `ssh`, `passwords`, and `certs`. Command functions keep accepting `noAgent`/`noBrowser` so direct callers and tests are unaffected.
+
+### Decision 18: Honest agent/custody reporting
+- **Context:** `unlock` always claimed a background agent was holding the key even when daemon startup silently failed, and `lock` always claimed termination because `AgentClient.lock()` swallowed connection errors.
+- **Decision:** Query `STATUS` before/after and report the real custody state. `unlock` warns when only an in-process session exists (key discarded on exit); `lock` differentiates "already locked, stopping idle daemon" from "terminated".
+
+### Decision 19: Apply existing configuration keys
+- **Context:** `default.project`, `default.env`, and `clipboard.timeout` were documented and stored but never read outside `run`.
+- **Decision:** Add `getDefaultScope()` and `getClipboardTimeoutSecs()`. Bulk commands (`ls`, `pull`, `push`, `watch`, `run`) use the default scope when no explicit flag is passed; clipboard copy paths (`get`, `passwords`, `totp`) honor the configured timeout, including `0` to disable auto-clear.
+
+### Decision 20: Import/export integrity
+- **Context:** `scync push` could create duplicate secrets when a `.env` repeated a key, normalized `--type` was shadowed per-item, and `--force` was accepted by `updateSecret` but never exposed. `scync pull -o <file>` (without a positional file) discarded every option because Commander passes `(undefined, options)` and the command only inspected the first argument. `scync pull` could also silently emit colliding variable names and did not record exports.
+- **Decision:** Deduplicate parsed entries with last-value-wins, normalize `--type` once, wire `push --force`, handle both `pull` call shapes, and warn on export key collisions. File exports now append the existing `env_exported` ledger event.
+
+### Decision 21: Type safety and output hygiene
+- **Context:** `tsc --noEmit` failed in seven places; `watch` compared a non-existent `nonce` field so ciphertext-only changes could be missed; several table renderers printed untrusted vault strings without sanitization; `maxWidth`-style column options were dead.
+- **Decision:** Restore a clean typecheck, compare `EncryptedField.iv`/`ciphertext`, sanitize names/hosts/URLs/services in human-facing output, and implement `minWidth` in `renderTable`. `--no-color` behavior remains delegated to `picocolors`/`NO_COLOR`.
+- **Validation:** `npm run typecheck`, `npm test` (43/43), and `npm run test:emulator` (69/69) all pass. Two stale emulator assertions were corrected: `show --json` now explicitly uses `--reveal` (masked by default), and the TOTP grouping regex allows the intentional double space.
+
+---
+
 ## 2026-11-15: Initial Architecture & Phase 0 Setup
 
 ### Decision 1: Project Structure and Runtime

@@ -4,6 +4,7 @@ import { getCertificates } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { renderTable, renderCard } from '../tui.js';
+import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import pc from 'picocolors';
 
 export interface CertsOptions {
@@ -70,8 +71,8 @@ export async function certsCommand(query?: string, options: CertsOptions = {}): 
     const hasKey = c.encKeyPem ? pc.green('● Yes') : pc.dim('No');
 
     return [
-      pc.bold(c.name),
-      pc.dim(hostsDesc.slice(0, 26) + (hostsDesc.length > 26 ? '…' : '')),
+      pc.bold(sanitizeTerminalOutput(c.name)),
+      pc.dim(sanitizeTerminalOutput(hostsDesc).slice(0, 26) + (hostsDesc.length > 26 ? '…' : '')),
       expiryStr,
       hasKey
     ];
@@ -86,7 +87,7 @@ export async function certsCommand(query?: string, options: CertsOptions = {}): 
       if (c.encKeyPem) {
         const keyPem = await vault.decrypt(c.encKeyPem);
         renderCard({
-          title: `Private Key: ${c.name}`,
+          title: `Private Key: ${sanitizeTerminalOutput(c.name)}`,
           badge: pc.yellow('● Decrypted'),
           sections: [{ lines: keyPem.trim().split('\n').map(l => pc.dim(l)) }],
           footer: pc.dim('Vault Protected Key Pair')

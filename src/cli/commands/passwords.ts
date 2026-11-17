@@ -3,8 +3,10 @@ import { getDb } from '../../core/firebase.js';
 import { getPasswords } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { copyWithAutoClear } from '../../utils/clipboard.js';
+import { getClipboardTimeoutSecs } from '../../config/index.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { renderTable, successBanner } from '../tui.js';
+import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import pc from 'picocolors';
 
 export interface PasswordsOptions {
@@ -39,13 +41,24 @@ export async function passwordsCommand(query?: string, options: PasswordsOptions
     return;
   }
 
-  // If exact query matches 1 and --copy is requested
+  // If exactly one password matched and --copy was requested
+  if (options.copy && passwords.length > 1) {
+    throw new CliError(
+      `Multiple passwords match '${query ?? ''}'. Refine the query so exactly one entry is selected before using --copy.`,
+      ExitCode.AMBIGUOUS
+    );
+  }
+
   if (passwords.length === 1 && options.copy) {
     const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
     const plainPassword = await vault.decrypt(passwords[0].encPassword);
-    await copyWithAutoClear(plainPassword, 30);
+    const clipboardSecs = getClipboardTimeoutSecs();
+    await copyWithAutoClear(plainPassword, clipboardSecs);
     successBanner(`Password for '${passwords[0].name}' copied to clipboard`, [
-      { key: 'Auto-Clear', val: 'Clears in 30 seconds' }
+      {
+        key: 'Auto-Clear',
+        val: clipboardSecs > 0 ? `Clears in ${clipboardSecs} seconds` : 'Disabled'
+      }
     ]);
     return;
   }
@@ -94,10 +107,10 @@ export async function passwordsCommand(query?: string, options: PasswordsOptions
       }
     }
     rows.push([
-      pc.bold(p.name),
-      p.username,
+      pc.bold(sanitizeTerminalOutput(p.name)),
+      sanitizeTerminalOutput(p.username),
       pass,
-      pc.dim(p.url || 'None')
+      pc.dim(sanitizeTerminalOutput(p.url || 'None'))
     ]);
   }
 

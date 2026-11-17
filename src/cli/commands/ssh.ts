@@ -6,7 +6,7 @@ import { getDb } from '../../core/firebase.js';
 import { getSSHKeys } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
-import { sanitizeKeyFileName } from '../../utils/sanitize.js';
+import { sanitizeKeyFileName, sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import { renderTable, successBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
@@ -52,10 +52,10 @@ export async function sshCommand(action = 'ls', name?: string, options: SSHOptio
       ];
 
       const rows = keys.map(k => [
-        pc.bold(k.name),
-        pc.cyan(k.type),
-        pc.dim(k.fingerprint),
-        k.hosts.length > 0 ? k.hosts.join(', ') : pc.dim('none')
+        pc.bold(sanitizeTerminalOutput(k.name)),
+        pc.cyan(sanitizeTerminalOutput(k.type)),
+        pc.dim(sanitizeTerminalOutput(k.fingerprint)),
+        k.hosts.length > 0 ? k.hosts.map(sanitizeTerminalOutput).join(', ') : pc.dim('none')
       ]);
 
       const footer = pc.dim(`Total: ${keys.length} SSH key(s) • Use 'scync ssh export <name>' to write keys`);

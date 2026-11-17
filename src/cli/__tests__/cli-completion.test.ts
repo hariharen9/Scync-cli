@@ -13,6 +13,9 @@ describe('Shell Completion Generators', () => {
     expect(bash).toContain('unlock');
     expect(bash).toContain('run');
     expect(bash).toContain('watch');
+    for (const cmd of ['projects', 'totp', 'ssh', 'passwords', 'certs']) {
+      expect(bash).toContain(cmd);
+    }
   });
 
   it('generates valid Zsh completion script', () => {
@@ -28,5 +31,7 @@ describe('Shell Completion Generators', () => {
     expect(pwsh).toContain('-CommandName scync');
     expect(pwsh).toContain('unlock');
     expect(pwsh).toContain('run');
+    expect(pwsh).toContain('totp');
+    expect(pwsh).toContain('certs');
   });
 });

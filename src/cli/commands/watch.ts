@@ -2,8 +2,10 @@ import { getValidSession } from '../../auth/session.js';
 import { getDb } from '../../core/firebase.js';
 import { subscribeToSecrets, resolveProjectId } from '../../core/firestore.js';
 import { unlockVault, type VaultSession } from '../../core/vault-session.js';
-import type { StoredSecret, EncryptedValue } from '../../core/types.js';
+import type { StoredSecret, EncryptedField } from '../../core/types.js';
+import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
 import { AuthRequiredError } from '../errors.js';
+import { getDefaultScope } from '../../config/index.js';
 import { renderCard, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
@@ -15,9 +17,9 @@ export interface WatchOptions {
   noAgent?: boolean;
 }
 
-function isEncValueEqual(a: EncryptedValue, b: EncryptedValue): boolean {
+function isEncValueEqual(a: EncryptedField, b: EncryptedField): boolean {
   if (!a || !b) return a === b;
-  return a.ciphertext === b.ciphertext && a.nonce === b.nonce;
+  return a.ciphertext === b.ciphertext && a.iv === b.iv;
 }
 
 export async function watchCommand(options: WatchOptions = {}): Promise<void> {
@@ -32,12 +34,20 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
     vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });
   }
 
+  const defaults = getDefaultScope();
+  const projectFilter = options.project ?? defaults.project;
+  const envFilter = options.env ?? defaults.env;
+  const serviceFilter = options.service?.toLowerCase();
+  const resolvedProject = projectFilter
+    ? (await resolveProjectId(session.uid, projectFilter, db)).toLowerCase()
+    : undefined;
+
   const cache = new Map<string, StoredSecret>();
   let isInitial = true;
 
   const filterDesc = [
-    options.project ? `Project: ${options.project}` : null,
-    options.env ? `Env: ${options.env}` : null,
+    projectFilter ? `Project: ${projectFilter}` : null,
+    envFilter ? `Env: ${envFilter}` : null,
     options.service ? `Service: ${options.service}` : null,
   ].filter(Boolean).join(' · ') || 'All Secrets';
 
@@ -57,16 +67,14 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
       session.uid,
       async (allSecrets: StoredSecret[]) => {
         let secrets = allSecrets;
-        if (options.project) {
-          const resolvedProj = await resolveProjectId(session.uid, options.project, db);
-          const p = resolvedProj.toLowerCase();
-          secrets = secrets.filter((s) => s.projectId?.toLowerCase() === p);
+        if (resolvedProject) {
+          secrets = secrets.filter((s) => s.projectId?.toLowerCase() === resolvedProject);
         }
-        if (options.env) {
-          secrets = secrets.filter((s) => s.environment.toLowerCase() === (options.env as string).toLowerCase());
+        if (envFilter) {
+          secrets = secrets.filter((s) => s.environment.toLowerCase() === envFilter.toLowerCase());
         }
-        if (options.service) {
-          secrets = secrets.filter((s) => s.service.toLowerCase() === options.service!.toLowerCase());
+        if (serviceFilter) {
+          secrets = secrets.filter((s) => s.service.toLowerCase() === serviceFilter);
         }
 
         const now = new Date().toLocaleTimeString();
@@ -88,7 +96,7 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
           if (!old) {
             // Added
             console.log(
-              `  ${pc.dim(`[${now}]`)} ${pc.green('● ADDED')}    ${pc.bold(current.name)} (v${current.version} · ${current.service} · ${envBadge(current.environment)})`
+              `  ${pc.dim(`[${now}]`)} ${pc.green('● ADDED')}    ${pc.bold(sanitizeTerminalOutput(current.name))} (v${current.version} · ${sanitizeTerminalOutput(current.service)} · ${envBadge(sanitizeTerminalOutput(current.environment))})`
             );
             if (options.reveal && vault) {
               try {
@@ -107,7 +115,7 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
           ) {
             // Modified
             console.log(
-              `  ${pc.dim(`[${now}]`)} ${pc.yellow('● MODIFIED')} ${pc.bold(current.name)} (${pc.dim(`v${old.version}`)} → ${pc.bold(`v${current.version}`)} · ${current.service} · ${envBadge(current.environment)})`
+              `  ${pc.dim(`[${now}]`)} ${pc.yellow('● MODIFIED')} ${pc.bold(sanitizeTerminalOutput(current.name))} (${pc.dim(`v${old.version}`)} → ${pc.bold(`v${current.version}`)} · ${sanitizeTerminalOutput(current.service)} · ${envBadge(sanitizeTerminalOutput(current.environment))})`
             );
             if (options.reveal && vault) {
               try {
@@ -124,7 +132,7 @@ export async function watchCommand(options: WatchOptions = {}): Promise<void> {
         for (const [id, old] of cache.entries()) {
           if (!currentMap.has(id)) {
             console.log(
-              `  ${pc.dim(`[${now}]`)} ${pc.red('● DELETED')}  ${pc.bold(old.name)} (${old.service} · ${envBadge(old.environment)})`
+              `  ${pc.dim(`[${now}]`)} ${pc.red('● DELETED')}  ${pc.bold(sanitizeTerminalOutput(old.name))} (${sanitizeTerminalOutput(old.service)} · ${envBadge(sanitizeTerminalOutput(old.environment))})`
             );
           }
         }
