@@ -5,7 +5,7 @@ _scync_completions() {
   local cur prev commands
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  commands="login logout whoami status unlock lock ls get show set update edit rotate restore rm pull export projects push import run watch config completion totp ssh passwords pass certs certificates"
+  commands="login logout whoami status unlock lock ls get show set update edit rotate restore rm pull export projects push import run watch config completion totp ssh passwords pass certs certificates tui ui"
 
   case "\${prev}" in
     get|show|update|rotate|restore|rm)
@@ -61,6 +61,7 @@ _scync() {
     'ssh:Manage vaulted SSH keys'
     'passwords:Search stored website passwords'
     'certs:Inspect SSL/TLS certificates'
+    'tui:Launch the interactive terminal UI'
   )
 
   _arguments -C \\
@@ -86,7 +87,7 @@ Register-ArgumentCompleter -Native -CommandName scync -ScriptBlock {
         'login', 'logout', 'whoami', 'status', 'unlock', 'lock',
         'ls', 'get', 'show', 'set', 'update', 'rotate', 'restore', 'rm',
         'pull', 'push', 'projects', 'run', 'watch', 'config', 'completion',
-        'totp', 'ssh', 'passwords', 'certs'
+        'totp', 'ssh', 'passwords', 'certs', 'tui'
     )
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
         [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
@@ -109,7 +110,7 @@ export async function completionCommand(shell?: string): Promise<void> {
       console.log(generatePowerShellCompletion());
       break;
     case 'fish':
-      console.log('complete -c scync -f -a "login logout whoami status unlock lock ls get show set update rotate restore rm pull push projects run watch config completion totp ssh passwords certs"');
+      console.log('complete -c scync -f -a "login logout whoami status unlock lock ls get show set update rotate restore rm pull push projects run watch config completion totp ssh passwords certs tui ui"');
       break;
     default:
       console.error(`Unsupported shell: ${shell}. Supported shells: bash, zsh, fish, powershell`);

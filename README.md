@@ -2,7 +2,7 @@
 
 > Zero-knowledge developer secrets manager CLI. Interoperable with the [Scync](https://github.com/scync) web client.
 
-[![Tests](https://img.shields.io/badge/tests-43%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-79%20passed-brightgreen.svg)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -127,6 +127,39 @@ scync watch
 scync lock
 ```
 
+### 6. Interactive TUI (beta)
+```bash
+# Full-screen vault interface: dashboard, secrets, projects, passwords,
+# TOTP, SSH keys, certificates, tools and settings
+scync tui
+
+# Fallbacks and options
+scync tui --ascii          # ASCII borders for limited terminals
+scync tui --no-agent       # Keep keys in-process only
+```
+
+The TUI is a separate `src/tui/` app that plugs into the same auth, vault,
+crypto, agent and Firestore logic as the commands above. It masks values by
+default, auto-hides reveals after 15 seconds, uses the configured clipboard
+auto-clear, and writes secrets through the same version-checked CRUD paths.
+
+| Keys | Action |
+|---|---|
+| `←` / `→` | Previous / next view |
+| `U` / `L` | Unlock / lock vault |
+| `↑ ↓`, `Enter`, `Tab` | Move, open, switch pane |
+| `Esc` | Back: close modal/detail, clear search/filters, then previous view |
+| `1` … `9`, `[` / `]` | Jump to a view |
+| `/` | Search the current list |
+| `n` / `e` / `R` / `v` / `d` | New / edit / rotate / versions / delete secret |
+| `r` / `c` / `y` / `s` | Reveal / copy / copy notes / view full value |
+| `f` / `x` / `o` / `O` | Filters / clear / cycle sort / direction |
+| `Ctrl+R`, `?`, `q` | Refresh, help, quit |
+
+Every screen also has contextual hints in the bottom bar. See
+[`src/tui/README.md`](./src/tui/README.md) for the architecture, data flow and
+keymap.
+
 ---
 
 ## 📖 Command Reference
@@ -160,6 +193,7 @@ scync lock
 | `scync pull` / `export` | `--output <file>`, `--project`, `--env`, `--force` | Export active secrets to `.env` (enforces `0600` permissions). |
 | `scync push` / `import` | `[file]`, `--dry-run`, `--overwrite`, `--force`, `--project`, `--env`, `--type` | Import variables from `.env` file; duplicate keys collapse with last-value-wins. |
 | `scync watch` | `--project`, `--env`, `--reveal` | Real-time Firestore sync stream (`onSnapshot`) logging added/modified/removed secrets. |
+| `scync tui` / `ui` | `--no-agent`, `--ascii` | Full-screen interactive vault UI (dashboard, secrets, projects, passwords, TOTP, SSH, certs, tools, settings). |
 | `scync config` | `[action] [key] [value]` | View or modify local CLI preferences in `~/.scync/config.json` (`default.project`, `default.env`, `agent.timeout`, `clipboard.timeout`, `output.format`). |
 | `scync completion` | `<shell>` | Generate shell completions for `bash`, `zsh`, `fish`, or `powershell`. |
 
@@ -193,14 +227,14 @@ scync lock
 ```bash
 npm test
 ```
-*(Runs 9 suites, 43/43 tests passing).*
+*(Runs 12 suites, 79/79 tests passing, including headless TUI render/key/edit coverage).*
 
 ### Run Emulator Integration Tests
 Requires Firebase CLI (`npm install -g firebase-tools`):
 ```bash
 npm run test:emulator
 ```
-*(Executes against Firebase Local Emulator Suite Auth `:9099` and Firestore `:8080`; 15 suites, 69/69 tests passing).*
+*(Executes against Firebase Local Emulator Suite Auth `:9099` and Firestore `:8080`; 18 suites, 105/105 tests passing including the unit suites).*
 
 ### Run Live Vault Smoke Test
 ```bash

@@ -31,6 +31,18 @@ This log tracks architectural and design decisions made during the development o
 - **Context:** `runCli` replaced its original `process.exit(0)` with `await closeFirebase()`, but a restored Firebase Auth session keeps a ref'd token-refresh timer alive. Authenticated commands such as `unlock` therefore printed their result and then hung until Ctrl+C, while unauthenticated commands like `lock` exited normally.
 - **Decision:** After `closeFirebase()`, flush `stdout`/`stderr` (so `get --raw | ...` and `pull > .env` cannot truncate) and explicitly exit for one-shot commands. `watch` and `_agent-daemon` remain long-lived. Verified under the Auth emulator: `unlock` exits in ~0.95s (including agent spawn) and `lock` in ~0.35s.
 
+### Decision 23: First-party full-screen TUI in `src/tui/`
+- **Context:** The command surface is powerful but discoverability and browsing suffer in a line-oriented CLI. The user asked for a web-like terminal interface supporting the full vault while keeping the existing commands unchanged.
+- **Decision:** Build a separate, self-contained `src/tui/` app exposed through one new `scync tui` / `scync ui` command. No third-party TUI framework: a cell-grid `Buffer` (character + fg/bg/attributes), a row-diffing `Terminal` (alternate screen, raw mode, bracketed paste, suspend/resume), and ANSI-aware width/wrapping/sanitisation. Views cover dashboard, secrets (CRUD/rotate/restore/filters/sort/search), projects (CRUD), passwords, TOTP, SSH, certificates, tools (`.env` export/import, run command) and settings (identity/vault/agent/config). The TUI calls the same auth, vault-session, crypto, agent and Firestore modules as the CLI; it never re-implements crypto.
+- **Security:** values remain masked by default, are decrypted only on explicit reveal/copy/edit/view, auto-hide after 15s, and all plaintext caches/revealed values/decrypted TOTP secrets are cleared on lock and exit. Clipboard uses the existing detached auto-clear worker. Writes use the existing optimistic version checks, so concurrent web edits surface as conflicts.
+- **Compatibility:** The existing command implementations were not modified. `core/firestore.ts` gained additive `createProject`, `updateProject` and `deleteProject` ports from the reference snapshot for the Projects view. TUI tests render every view at wide/compact sizes and exercise key routing, search, forms, selects and modals headlessly.
+- **Platform:** truecolor/256/16/no-colour detection (including Windows Terminal), optional ASCII borders, and mandatory terminal restoration on quit, signals and render failures.
+
+### Decision 24: Terminal input disambiguation and navigation
+- **Context:** The first TUI build held a lone `ESC` because it was also a valid prefix of the bracketed-paste marker, so Escape never reached the UI. On Windows, libuv delivers arrows as `ESC [ A`-style sequences and may split them across reads. The startup unlock modal also captured arrows, making the list feel unnavigable.
+- **Decision:** Treat a lone `ESC` as pending for ~40 ms; deliver Escape if no more bytes arrive, otherwise reassemble the sequence. Partial paste-marker prefixes are discarded on timeout instead of typed. `Esc` is now a universal back action (modal → detail → search/filter → view history). `←`/`→` switch views, `↑`/`↓` move lists, `Enter` opens, `Tab` switches panes. The startup unlock prompt is no longer modal; metadata browsing is available while locked, and decrypt actions prompt on demand.
+- **Validation:** New parser tests cover lone Escape, arrows split after `ESC`, and arrows split inside the CSI prefix; interaction tests cover arrow selection, Escape-from-detail, and Escape view-history back.
+
 ---
 
 ## 2026-11-15: Initial Architecture & Phase 0 Setup

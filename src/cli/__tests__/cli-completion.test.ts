@@ -13,7 +13,7 @@ describe('Shell Completion Generators', () => {
     expect(bash).toContain('unlock');
     expect(bash).toContain('run');
     expect(bash).toContain('watch');
-    for (const cmd of ['projects', 'totp', 'ssh', 'passwords', 'certs']) {
+    for (const cmd of ['projects', 'totp', 'ssh', 'passwords', 'certs', 'tui']) {
       expect(bash).toContain(cmd);
     }
   });

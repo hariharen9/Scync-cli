@@ -774,6 +774,66 @@ export async function getProjects(uid: string, dbOverride?: Firestore): Promise<
   });
 }
 
+export async function createProject(
+  uid: string,
+  data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>,
+  dbOverride?: Firestore
+): Promise<string> {
+  const db = dbOverride || getDb();
+  const projectsRef = collection(db, "users", uid, "projects");
+  const newRef = doc(projectsRef);
+
+  await setDoc(newRef, {
+    ...data,
+    id: newRef.id,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return newRef.id;
+}
+
+export async function updateProject(
+  uid: string,
+  projectId: string,
+  data: Partial<Pick<Project, 'name' | 'description' | 'color' | 'icon'>>,
+  dbOverride?: Firestore
+): Promise<void> {
+  const db = dbOverride || getDb();
+  const ref = doc(db, "users", uid, "projects", projectId);
+  await updateDoc(ref, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteProject(
+  uid: string,
+  projectId: string,
+  moveSecretsTo: string | null = null,
+  dbOverride?: Firestore
+): Promise<number> {
+  const db = dbOverride || getDb();
+  const secretsRef = collection(db, "users", uid, "secrets");
+  const secretsSnap = await getDocs(secretsRef);
+  const batch = writeBatch(db);
+  let moved = 0;
+
+  for (const secretDoc of secretsSnap.docs) {
+    if (secretDoc.data().projectId === projectId) {
+      batch.update(secretDoc.ref, {
+        projectId: moveSecretsTo,
+        updatedAt: serverTimestamp(),
+      });
+      moved++;
+    }
+  }
+
+  batch.delete(doc(db, "users", uid, "projects", projectId));
+  await batch.commit();
+  return moved;
+}
+
 export async function resolveProjectId(
   uid: string,
   projectNameOrId: string,

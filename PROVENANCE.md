@@ -17,3 +17,7 @@ This file tracks every module ported or copied from the reference repository (`E
 | `src/core/firestore.ts` | `packages/core/src/firestore.ts` | `61b96af` | Refactored Firebase dependency injection so `db` is passed or provided via a configured context rather than hardcoded global singleton with Vite envs. Maintained exact document shapes, versioning limits (10 items), specialized type queries (`getSSHKeys`, `getTOTPTokens`, `getLoginCredentials`, `getCertificates`), and ledger events. |
 | `src/core/firebase.ts` | `packages/core/src/firebase.ts` | `61b96af` | Replaced Vite `import.meta.env` with node config/environment variables (`process.env`) and modular initialization. |
 | `src/core/totp.ts` | `packages/core/src/totp.ts` | `61b96af` | Direct port of TOTP computation logic using standard RFC 6238 algorithms via `otpauth` library for OTP parsing, period calculation, remaining seconds, and code generation. |
+
+### Additions after the initial port
+
+- **2026-11-17 — Project CRUD (`src/core/firestore.ts`):** Added `createProject`, `updateProject` and `deleteProject` for the interactive TUI, ported from the same reference file (`Scync/packages/core/src/firestore.ts`, baseline `61b96af`). The functions keep the reference document shape (`name`, `description`, `color`, `icon`, timestamps) and add an optional injected `Firestore` handle plus a return value (`id` / moved-secret count) for CLI use.

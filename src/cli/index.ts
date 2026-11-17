@@ -37,6 +37,7 @@ import { totpCommand } from './commands/totp.js';
 import { sshCommand } from './commands/ssh.js';
 import { passwordsCommand } from './commands/passwords.js';
 import { certsCommand } from './commands/certs.js';
+import { runTui } from '../tui/index.js';
 import { runAgentDaemon } from '../agent/server.js';
 import { closeFirebase } from '../core/firebase.js';
 import { CliError, ExitCode } from './errors.js';
@@ -335,6 +336,17 @@ export function createProgram(): Command {
     .option('--no-agent', 'Do not use background agent')
     .action(async (query, opts) => {
       await certsCommand(query, { ...opts, noAgent: opts.agent === false });
+    });
+
+  // --- Interactive Terminal UI ---
+  program
+    .command('tui')
+    .alias('ui')
+    .description('Launch the interactive full-screen terminal vault interface')
+    .option('--no-agent', 'Keep keys in-process instead of starting the background agent')
+    .option('--ascii', 'Use ASCII borders instead of Unicode box drawing')
+    .action(async (opts) => {
+      await runTui({ noAgent: opts.agent === false, ascii: opts.ascii === true });
     });
 
   // --- Internal Daemon ---
