@@ -43,6 +43,12 @@ This log tracks architectural and design decisions made during the development o
 - **Decision:** Treat a lone `ESC` as pending for ~40 ms; deliver Escape if no more bytes arrive, otherwise reassemble the sequence. Partial paste-marker prefixes are discarded on timeout instead of typed. `Esc` is now a universal back action (modal → detail → search/filter → view history). `←`/`→` switch views, `↑`/`↓` move lists, `Enter` opens, `Tab` switches panes. The startup unlock prompt is no longer modal; metadata browsing is available while locked, and decrypt actions prompt on demand.
 - **Validation:** New parser tests cover lone Escape, arrows split after `ESC`, and arrows split inside the CSI prefix; interaction tests cover arrow selection, Escape-from-detail, and Escape view-history back.
 
+### Decision 25: CLI/TUI parity and mandatory destructive confirmations
+- **Context:** The TUI gained project CRUD and confirmation dialogs while the CLI still had list-only projects and several `--force` paths that bypassed prompts. The project rule is now that user-facing capabilities and safety behavior apply to **both** surfaces.
+- **Decision:** Add `scync projects create|update|delete` using the same core project functions as the TUI. Introduce `cli/confirm.ts`: interactive runs always confirm destructive actions; non-interactive runs must pass `--yes` or they refuse instead of hanging. `--force` continues to bypass the underlying safety check (concurrency, existing file, conflict) but no longer silently skips confirmation; automation uses `--force --yes`. Applies to `rm`, `update`, `rotate`, `pull`, `push`, `ssh export`, `logout` and `projects delete`. The TUI mirrors this with confirms for secret/project delete, logout, `.env` overwrite, SSH overwrite, import overwrite/force, and version-conflict overwrite.
+- **Compatibility:** `rm --force` was replaced by `rm --yes`; smoke/emulator tests and docs were updated. Existing commands otherwise keep their names and flags.
+- **Validation:** Emulator coverage now exercises project create/update/delete; the suite passes 108/108. The project update path also normalizes missing `icon` values and filters `undefined` fields before Firestore writes.
+
 ---
 
 ## 2026-11-15: Initial Architecture & Phase 0 Setup

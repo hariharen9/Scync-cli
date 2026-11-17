@@ -4,7 +4,7 @@ import { getDb } from '../../core/firebase.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { readSecretValueInput, inferServiceFromName, type SecretInputOptions } from '../input.js';
-import { promptConfirm } from '../prompts.js';
+import { confirmDestructive } from '../confirm.js';
 import { updateCommand } from './update.js';
 import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
 import { parseExpirationDate } from '../../utils/sanitize.js';
@@ -42,24 +42,24 @@ export async function setCommand(name: string, options: SetOptions): Promise<voi
   );
 
   if (existing) {
-    const skipPrompt = options.yes || options.force;
-    if (!skipPrompt) {
-      const confirm = await promptConfirm(
-        `Secret '${name}' already exists in ${env}${project ? ` (project: ${project})` : ''}. Update it?`,
-        false
-      );
-      if (!confirm) {
-        warningBanner('Aborted set operation. Secret was not modified.');
-        return;
-      }
+    const confirmed = await confirmDestructive(
+      `Secret '${name}' already exists in ${env}${project ? ` (project: ${project})` : ''}. Update it?${
+        options.force ? ' --force will bypass version checks.' : ''
+      }`,
+      { yes: options.yes }
+    );
+    if (!confirmed) {
+      warningBanner('Aborted set operation. Secret was not modified.');
+      return;
     }
 
-    // Delegate to update: preserve concurrency checks unless --force was explicitly specified
+    // The overwrite intent has just been confirmed; do not prompt twice in
+    // update when --force was combined with the confirmation.
     await updateCommand(name, {
       ...options,
       env,
       project: project || undefined,
-      force: options.force
+      yes: true,
     });
     return;
   }

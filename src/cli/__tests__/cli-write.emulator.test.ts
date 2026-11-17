@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { initFirebase } from '../../core/firebase.js';
 import { generateSalt, deriveKey, createVerifier, decrypt } from '../../core/crypto.js';
-import { setupVault, getSecrets } from '../../core/firestore.js';
+import { setupVault, getSecrets, getProjects } from '../../core/firestore.js';
 import { saveSession } from '../../auth/storage.js';
 import { createProgram } from '../index.js';
 import fs from 'node:fs';
@@ -213,10 +213,63 @@ export AWS_KEY="AKIAIOSFODNN7EXAMPLE"
     expect(decryptedAws).toBe('AKIAIOSFODNN7EXAMPLE');
   });
 
+  it('scync projects supports create, update and delete', async () => {
+    const capture = async (argv: string[]) => {
+      let output = '';
+      const original = console.log;
+      console.log = (...args: any[]) => {
+        output += args.join(' ');
+      };
+      try {
+        const program = createProgram();
+        await program.parseAsync(['node', 'scync', ...argv]);
+      } finally {
+        console.log = original;
+      }
+      return output;
+    };
+
+    const createdJson = await capture([
+      'projects', 'create', 'CLI PROJECT',
+      '--description', 'Created from the CLI',
+      '--color', 'blue',
+      '--json',
+    ]);
+    const created = JSON.parse(createdJson);
+    expect(created.name).toBe('CLI PROJECT');
+    expect(created.color).toBe('blue');
+    expect(created.id).toBeTruthy();
+
+    const updatedJson = await capture([
+      'projects', 'update', created.id,
+      '--name', 'CLI PROJECT RENAMED',
+      '--color', 'red',
+      '--json',
+    ]);
+    const updated = JSON.parse(updatedJson);
+    expect(updated.name).toBe('CLI PROJECT RENAMED');
+    expect(updated.color).toBe('red');
+
+    const listed = await getProjects(uid, dbInstance);
+    expect(listed.find((project) => project.id === created.id)?.name).toBe('CLI PROJECT RENAMED');
+
+    const deletedJson = await capture([
+      'projects', 'delete', created.id,
+      '--yes',
+      '--json',
+    ]);
+    const deleted = JSON.parse(deletedJson);
+    expect(deleted.deleted).toBe(true);
+    expect(deleted.movedSecrets).toBe(0);
+
+    const after = await getProjects(uid, dbInstance);
+    expect(after.some((project) => project.id === created.id)).toBe(false);
+  });
+
   it('scync rm deletes a secret and logs secret_deleted in activity ledger', async () => {
     const program = createProgram();
     await program.parseAsync([
-      'node', 'scync', 'rm', 'GITHUB_RECOVERY_CODES', '--force'
+      'node', 'scync', 'rm', 'GITHUB_RECOVERY_CODES', '--yes'
     ]);
 
     const secrets = await getSecrets(uid, dbInstance);

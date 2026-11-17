@@ -52,6 +52,9 @@ export class AmbiguousSecretError extends CliError {
 }
 
 export class ConflictError extends CliError {
+  readonly expectedVersion: number;
+  readonly actualVersion: number;
+
   constructor(name: string, expectedVersion: number, actualVersion: number) {
     super(
       `Conflict detected on '${name}': secret is currently at v${actualVersion}, but expected v${expectedVersion}.\n` +
@@ -59,5 +62,7 @@ export class ConflictError extends CliError {
       ExitCode.CONFLICT
     );
     this.name = 'ConflictError';
+    this.expectedVersion = expectedVersion;
+    this.actualVersion = actualVersion;
   }
 }

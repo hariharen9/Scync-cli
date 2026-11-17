@@ -7,6 +7,7 @@ settings — all using the same zero-knowledge core as the rest of the CLI.
 Launch it with:
 
 ```bash
+scync              # bare command opens the TUI in a real terminal
 scync tui          # or: scync ui
 scync tui --ascii  # ASCII borders for limited terminals
 scync tui --no-agent
@@ -97,6 +98,16 @@ Certificates: `v` view PEM, `c` copy PEM, `p` view private key, `y` copy key.
 
 Tools: export `.env`, import `.env`, run a command with secrets injected,
 unlock/lock, settings and logout.
+
+## Parity & safety
+
+- CLI and TUI are kept at feature parity. A new capability or behavior belongs
+  in both surfaces.
+- Destructive actions always confirm: secret/project delete, logout, `.env`
+  overwrite, SSH key overwrite, import overwrite/force, and version-conflict
+  overwrite.
+- The CLI requires `--yes` for destructive non-interactive runs; the TUI shows a
+  modal and never proceeds on a single accidental keypress.
 
 ## Platform notes
 

@@ -9,8 +9,9 @@ import { parseEnvFile, dedupeEnvEntries } from '../../utils/env.js';
 import { inferServiceFromName } from '../input.js';
 import { normalizeEnvironment, normalizeSecretType } from '../../core/constants.js';
 import { getDefaultScope } from '../../config/index.js';
+import { confirmDestructive } from '../confirm.js';
 import { sanitizeTerminalOutput } from '../../utils/sanitize.js';
-import { renderCard, envBadge } from '../tui.js';
+import { renderCard, envBadge, warningBanner } from '../tui.js';
 import type { SecretType, Environment, SecretStatus } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -22,6 +23,7 @@ export interface PushOptions {
   overwrite?: boolean;
   dryRun?: boolean;
   force?: boolean;
+  yes?: boolean;
 }
 
 export async function pushCommand(fileArg?: string, options: PushOptions = {}): Promise<void> {
@@ -105,6 +107,17 @@ export async function pushCommand(fileArg?: string, options: PushOptions = {}): 
   }
 
   // 4. Real Import
+  if (options.overwrite || options.force) {
+    const confirmed = await confirmDestructive(
+      `Import will overwrite existing secrets${options.force ? ' and bypass version checks' : ''}. Continue?`,
+      { yes: options.yes }
+    );
+    if (!confirmed) {
+      warningBanner('Aborted import. The vault was not modified.');
+      return;
+    }
+  }
+
   const vault = await unlockVault(session.uid, db);
 
   let createdCount = 0;

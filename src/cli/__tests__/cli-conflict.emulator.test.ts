@@ -130,12 +130,13 @@ describe('Optimistic Concurrency Conflict Detection (Emulator Integration)', () 
     expect(decrypted).toBe('concurrent-web-edit-v2');
   });
 
-  it('allows forced override with --force flag', async () => {
+  it('allows forced override with --force after explicit --yes confirmation', async () => {
     const program = createProgram();
     await program.parseAsync([
       'node', 'scync', 'update', 'SHARED_PROD_KEY',
       '-v', 'cli-forced-override-v3',
-      '--force'
+      '--force',
+      '--yes'
     ]);
 
     const secrets = await getSecrets(uid, dbInstance);

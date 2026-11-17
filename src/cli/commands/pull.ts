@@ -8,7 +8,7 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError } from '../errors.js';
 import { formatEnvLine, findEnvKeyCollisions } from '../../utils/env.js';
 import { getDefaultScope } from '../../config/index.js';
-import { promptConfirm } from '../prompts.js';
+import { confirmDestructive } from '../confirm.js';
 import { successBanner, envBadge, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
@@ -17,6 +17,7 @@ export interface PullOptions {
   env?: string;
   output?: string;
   force?: boolean;
+  yes?: boolean;
 }
 
 function checkGitIgnored(filePath: string): boolean | null {
@@ -128,10 +129,15 @@ export async function pullCommand(fileOrOpts?: string | PullOptions, maybeOpts?:
   // Writing to a target file
   const targetPath = path.resolve(outputPath);
 
-  if (fs.existsSync(targetPath) && !options.force) {
-    const overwrite = await promptConfirm(`File '${outputPath}' already exists. Overwrite?`, false);
-    if (!overwrite) {
-      console.error(pc.yellow('Aborted pull. Target file was not modified.'));
+  if (fs.existsSync(targetPath)) {
+    const confirmed = await confirmDestructive(
+      options.force
+        ? `--force will overwrite the existing file '${outputPath}'. Replace it?`
+        : `File '${outputPath}' already exists. Overwrite it?`,
+      { yes: options.yes }
+    );
+    if (!confirmed) {
+      warningBanner('Aborted pull. Target file was not modified.');
       return;
     }
   }

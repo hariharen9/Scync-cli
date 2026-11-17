@@ -15,6 +15,10 @@ _scync_completions() {
       COMPREPLY=( $(compgen -W "list get set unset" -- "\${cur}") )
       return 0
       ;;
+    projects)
+      COMPREPLY=( $(compgen -W "create update delete" -- "\${cur}") )
+      return 0
+      ;;
     completion)
       COMPREPLY=( $(compgen -W "bash zsh fish powershell" -- "\${cur}") )
       return 0

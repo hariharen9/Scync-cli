@@ -1,7 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-import { CliError, ExitCode } from '../cli/errors.js';
+import { CliError, ConflictError, ExitCode } from '../cli/errors.js';
 import { inferServiceFromName } from '../cli/input.js';
 import { ENVIRONMENTS, SECRET_TYPES, STATUSES } from '../core/constants.js';
 import { normalizeEnvironment } from '../core/constants.js';
@@ -51,6 +52,7 @@ import {
   EMPTY_SECRET_FILTER,
   filterSecrets,
   formatDateTime,
+  projectColorHex,
   projectName,
   sortSecrets,
   type SecretFilter,
@@ -952,6 +954,7 @@ export class TuiApp {
           form.error = 'Vault is locked.';
           return;
         }
+        let nextDraft: SecretDraft | null = null;
         try {
           const enums = normalizeDraftEnums({
             environment: values.environment,
@@ -963,7 +966,7 @@ export class TuiApp {
             !values.service.trim() || (values.service.trim() === 'Other' && !existing)
               ? inferServiceFromName(values.name)
               : values.service;
-          const nextDraft: SecretDraft = {
+          nextDraft = {
             name: values.name,
             service,
             type: enums.type,
@@ -985,6 +988,32 @@ export class TuiApp {
           );
           await this.reloadWorkspace();
         } catch (err) {
+          if (existing && nextDraft && err instanceof ConflictError) {
+            const conflictDraft = nextDraft;
+            this.openConfirm(
+              'Version conflict',
+              `'${existing.name}' changed in another session (now v${(err as ConflictError).actualVersion}). Overwrite it with your version?`,
+              async () => {
+                if (!this.vault) return;
+                try {
+                  const forced = await saveSecret(
+                    this.session!.uid,
+                    this.vault,
+                    conflictDraft,
+                    existing,
+                    { force: true }
+                  );
+                  this.state.modal = null;
+                  this.toast(`Overwrote '${existing.name}' as v${forced.version}`, 'success');
+                  await this.reloadWorkspace();
+                } catch (forceErr) {
+                  this.toast(messageOf(forceErr), 'error');
+                }
+              },
+              { danger: true, confirmLabel: 'Overwrite' }
+            );
+            return;
+          }
           form.error = messageOf(err);
         }
       },
@@ -1019,6 +1048,31 @@ export class TuiApp {
             this.toast(`Rotated '${secret.name}' to v${version}`, 'success');
             await this.reloadWorkspace();
           } catch (err) {
+            if (err instanceof ConflictError) {
+              this.openConfirm(
+                'Version conflict',
+                `'${secret.name}' changed in another session (now v${err.actualVersion}). Rotate it anyway and overwrite that version?`,
+                async () => {
+                  if (!this.vault) return;
+                  try {
+                    const version = await rotateSecretData(
+                      this.session!.uid,
+                      this.vault,
+                      secret,
+                      values.value,
+                      { force: true }
+                    );
+                    this.state.modal = null;
+                    this.toast(`Force-rotated '${secret.name}' to v${version}`, 'success');
+                    await this.reloadWorkspace();
+                  } catch (forceErr) {
+                    this.toast(messageOf(forceErr), 'error');
+                  }
+                },
+                { danger: true, confirmLabel: 'Overwrite' }
+              );
+              return;
+            }
             form.error = messageOf(err);
           }
         },
@@ -1232,6 +1286,7 @@ export class TuiApp {
             value: color,
           })),
         },
+        { key: 'icon', label: 'Icon', kind: 'text', value: '', placeholder: 'Optional icon name' },
       ],
       focus: 0,
       error: null,
@@ -1242,6 +1297,7 @@ export class TuiApp {
             name: values.name,
             description: values.description,
             color: values.color,
+            icon: values.icon,
           });
           this.state.modal = null;
           this.toast(`Project '${values.name}' created`, 'success');
@@ -1270,6 +1326,7 @@ export class TuiApp {
             value: color,
           })),
         },
+        { key: 'icon', label: 'Icon', kind: 'text', value: project.icon ?? '', placeholder: 'Optional icon name' },
       ],
       focus: 0,
       error: null,
@@ -1280,6 +1337,7 @@ export class TuiApp {
             name: values.name,
             description: values.description,
             color: values.color,
+            icon: values.icon,
           });
           this.state.modal = null;
           this.toast(`Project '${values.name}' updated`, 'success');
@@ -1293,16 +1351,60 @@ export class TuiApp {
   }
 
   deleteProject(project: Project): void {
+    const others = this.state.data.projects.filter((entry) => entry.id !== project.id);
+    if (others.length === 0) {
+      this.confirmDeleteProject(project, null);
+      return;
+    }
+    this.openPicker({
+      title: `Delete '${project.name}'`,
+      subtitle: 'Where should the project’s secrets go?',
+      items: [
+        { label: 'Leave uncategorized', value: '', hint: 'default' },
+        ...others.map((entry) => ({
+          label: `Move to ${entry.name}`,
+          value: entry.id,
+          color: projectColorHex(entry.color),
+        })),
+      ],
+      selected: 0,
+      scroll: 0,
+      query: '',
+      searchable: false,
+      onSelect: (destinationId) => {
+        const destination = destinationId
+          ? this.state.data.projects.find((entry) => entry.id === destinationId) ?? null
+          : null;
+        this.confirmDeleteProject(project, destination);
+      },
+    });
+  }
+
+  private confirmDeleteProject(project: Project, destination: Project | null): void {
+    const count = this.state.data.secrets.filter((secret) => secret.projectId === project.id).length;
+    const destinationText = destination
+      ? `${count} secret(s) will be moved to '${destination.name}'.`
+      : `${count} secret(s) will become uncategorized.`;
+
     this.openConfirm(
       'Delete project',
-      `Delete '${project.name}'? Secrets in this project become uncategorized; they are not deleted.`,
+      `Delete '${project.name}'? ${destinationText}`,
       async () => {
         try {
-          const moved = await removeProject(this.session!.uid, project.id, null);
+          const moved = await removeProject(
+            this.session!.uid,
+            project.id,
+            destination?.id ?? null
+          );
           if (this.state.secrets.filter.projectId === project.id) {
             this.state.secrets.filter.projectId = null;
           }
-          this.toast(`Deleted project '${project.name}' (${moved} secret(s) uncategorized)`, 'success');
+          this.toast(
+            destination
+              ? `Deleted '${project.name}' · ${moved} secret(s) moved to '${destination.name}'`
+              : `Deleted '${project.name}' · ${moved} secret(s) uncategorized`,
+            'success'
+          );
           await this.reloadWorkspace();
         } catch (err) {
           this.toast(messageOf(err), 'error');
@@ -1535,14 +1637,31 @@ export class TuiApp {
         submitLabel: 'Export',
         onSubmit: async (values) => {
           if (!this.vault) return;
-          try {
-            const privateKey = await decryptStoredField(this.vault, key.encPrivateKey);
-            const result = exportSshKey(key, privateKey, values.dir, values.overwrite === 'true');
-            this.state.modal = null;
-            this.toast(`Exported to ${result.privatePath}`, 'success');
-          } catch (err) {
-            form.error = messageOf(err);
+          const overwrite = values.overwrite === 'true';
+
+          const performExport = async () => {
+            try {
+              const privateKey = await decryptStoredField(this.vault!, key.encPrivateKey);
+              const result = exportSshKey(key, privateKey, values.dir, overwrite);
+              this.state.modal = null;
+              this.toast(`Exported to ${result.privatePath}`, 'success');
+            } catch (err) {
+              if (this.state.modal?.kind === 'form') form.error = messageOf(err);
+              else this.toast(messageOf(err), 'error');
+            }
+          };
+
+          if (overwrite) {
+            this.openConfirm(
+              'Overwrite SSH key files',
+              `Replace any existing key files in '${values.dir}'?`,
+              performExport,
+              { danger: true, confirmLabel: 'Overwrite' }
+            );
+            return;
           }
+
+          await performExport();
         },
       };
       this.openForm(form);
@@ -1652,39 +1771,57 @@ export class TuiApp {
         submitLabel: 'Export',
         onSubmit: async (values) => {
           if (!this.vault) return;
-          try {
-            const scope: SecretFilter = {
-              ...this.state.secrets.filter,
-              projectId: values.project || null,
-              env: values.env || null,
-              search: '',
-            };
-            const secrets = filterSecrets(this.state.data.secrets, scope);
-            const result = await exportSecretsToEnv(
-              this.session!.uid,
-              this.vault,
-              secrets,
-              values.path,
-              {
-                project: values.project ? projectName(this.state.data.projects, values.project) : undefined,
-                env: values.env || undefined,
-              },
-              values.overwrite === 'true'
-            );
-            this.state.modal = null;
-            this.toast(`Exported ${result.count} secret(s) to ${result.path}`, 'success');
-            if (result.warnings.length > 0) {
-              this.openViewer({
-                title: 'Export warnings',
-                text: result.warnings.join('\n'),
-                scroll: 0,
-                wrap: true,
-                copyLabel: 'Warnings',
-              });
+          const scope: SecretFilter = {
+            ...this.state.secrets.filter,
+            projectId: values.project || null,
+            env: values.env || null,
+            search: '',
+          };
+          const secrets = filterSecrets(this.state.data.secrets, scope);
+
+          const performExport = async (overwrite: boolean) => {
+            try {
+              const result = await exportSecretsToEnv(
+                this.session!.uid,
+                this.vault!,
+                secrets,
+                values.path,
+                {
+                  project: values.project
+                    ? projectName(this.state.data.projects, values.project)
+                    : undefined,
+                  env: values.env || undefined,
+                },
+                overwrite
+              );
+              this.state.modal = null;
+              this.toast(`Exported ${result.count} secret(s) to ${result.path}`, 'success');
+              if (result.warnings.length > 0) {
+                this.openViewer({
+                  title: 'Export warnings',
+                  text: result.warnings.join('\n'),
+                  scroll: 0,
+                  wrap: true,
+                  copyLabel: 'Warnings',
+                });
+              }
+            } catch (err) {
+              if (this.state.modal?.kind === 'form') form.error = messageOf(err);
+              else this.toast(messageOf(err), 'error');
             }
-          } catch (err) {
-            form.error = messageOf(err);
+          };
+
+          if (fs.existsSync(path.resolve(values.path))) {
+            this.openConfirm(
+              'Overwrite file',
+              `'${values.path}' already exists. Replace it with the exported secrets?`,
+              () => performExport(true),
+              { danger: true, confirmLabel: 'Overwrite' }
+            );
+            return;
           }
+
+          await performExport(values.overwrite === 'true');
         },
       };
       this.openForm(form);
@@ -1720,38 +1857,63 @@ export class TuiApp {
         submitLabel: 'Import',
         onSubmit: async (values) => {
           if (!this.vault) return;
+          const overwrite = values.overwrite === 'true';
+          const force = values.force === 'true';
+
+          let content: string;
           try {
-            const content = readTextFile(values.path);
-            const result = await importEnvFile({
-              uid: this.session!.uid,
-              vault: this.vault,
-              content,
-              environment: normalizeEnvironment(values.env),
-              projectId: values.project || null,
-              overwrite: values.overwrite === 'true',
-              force: values.force === 'true',
-            });
-            this.state.modal = null;
-            this.toast(
-              `Import complete · ${result.created} created · ${result.updated} updated · ${result.skipped} skipped`,
-              result.failed.length > 0 ? 'warning' : 'success'
-            );
-            if (result.failed.length > 0 || result.duplicates > 0) {
-              const lines = [
-                result.duplicates > 0 ? `${result.duplicates} duplicate key(s) collapsed` : '',
-                ...result.failed.map((failure) => `${failure.key}: ${failure.error}`),
-              ].filter(Boolean);
-              this.openViewer({
-                title: 'Import report',
-                text: lines.join('\n'),
-                scroll: 0,
-                wrap: true,
-              });
-            }
-            await this.reloadWorkspace();
+            content = readTextFile(values.path);
           } catch (err) {
             form.error = messageOf(err);
+            return;
           }
+
+          const performImport = async () => {
+            try {
+              const result = await importEnvFile({
+                uid: this.session!.uid,
+                vault: this.vault!,
+                content,
+                environment: normalizeEnvironment(values.env),
+                projectId: values.project || null,
+                overwrite,
+                force,
+              });
+              this.state.modal = null;
+              this.toast(
+                `Import complete · ${result.created} created · ${result.updated} updated · ${result.skipped} skipped`,
+                result.failed.length > 0 ? 'warning' : 'success'
+              );
+              if (result.failed.length > 0 || result.duplicates > 0) {
+                const lines = [
+                  result.duplicates > 0 ? `${result.duplicates} duplicate key(s) collapsed` : '',
+                  ...result.failed.map((failure) => `${failure.key}: ${failure.error}`),
+                ].filter(Boolean);
+                this.openViewer({
+                  title: 'Import report',
+                  text: lines.join('\n'),
+                  scroll: 0,
+                  wrap: true,
+                });
+              }
+              await this.reloadWorkspace();
+            } catch (err) {
+              if (this.state.modal?.kind === 'form') form.error = messageOf(err);
+              else this.toast(messageOf(err), 'error');
+            }
+          };
+
+          if (overwrite || force) {
+            this.openConfirm(
+              'Confirm import',
+              `This will overwrite existing secrets${force ? ' and bypass version checks' : ''}. Continue?`,
+              performImport,
+              { danger: true, confirmLabel: 'Import' }
+            );
+            return;
+          }
+
+          await performImport();
         },
       };
       this.openForm(form);

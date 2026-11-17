@@ -5,7 +5,8 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
-import { successBanner, envBadge } from '../tui.js';
+import { confirmDestructive } from '../confirm.js';
+import { successBanner, envBadge, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface RotateOptions extends SecretInputOptions {
@@ -13,6 +14,7 @@ export interface RotateOptions extends SecretInputOptions {
   env?: string;
   id?: string;
   force?: boolean;
+  yes?: boolean;
 }
 
 export async function rotateCommand(name: string, options: RotateOptions): Promise<void> {
@@ -34,6 +36,17 @@ export async function rotateCommand(name: string, options: RotateOptions): Promi
 
   const vault = await unlockVault(session.uid, db);
   const decrypted = await decryptSecret(vault, target);
+
+  if (options.force && !options.yes) {
+    const confirmed = await confirmDestructive(
+      `--force will override remote version checks for '${target.name}' and may overwrite a newer value. Continue?`,
+      { yes: false }
+    );
+    if (!confirmed) {
+      warningBanner('Aborted rotation. Secret was not modified.');
+      return;
+    }
+  }
 
   const rotationDate = new Date();
   const expectedVersion = target.version || 1;

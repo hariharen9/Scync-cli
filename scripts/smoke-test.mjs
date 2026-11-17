@@ -117,7 +117,7 @@ async function smokeTest() {
   assert(certsRes.success, 'certs command responds');
 
   // 13. Cleanup Test Secret
-  const rmRes = run(`rm ${testSecretName} --force`, 'Step 13: Clean Up Smoke Test Secret');
+  const rmRes = run(`rm ${testSecretName} --yes`, 'Step 13: Clean Up Smoke Test Secret');
   assert(rmRes.success && rmRes.clean.includes('Deleted secret'), 'Smoke test secret deleted cleanly');
 
   // Results

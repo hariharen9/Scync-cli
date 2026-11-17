@@ -22,7 +22,7 @@ import { lsCommand } from './commands/ls.js';
 import { getCommand } from './commands/get.js';
 import { showCommand } from './commands/show.js';
 import { pullCommand } from './commands/pull.js';
-import { projectsCommand } from './commands/projects.js';
+import { projectsCommand, createProjectCommand, updateProjectCommand, deleteProjectCommand } from './commands/projects.js';
 import { setCommand } from './commands/set.js';
 import { updateCommand } from './commands/update.js';
 import { rotateCommand } from './commands/rotate.js';
@@ -48,9 +48,18 @@ export function createProgram(): Command {
 
   program
     .name('scync')
-    .description('Zero-knowledge developer secrets manager CLI')
+    .description('Zero-knowledge developer secrets manager (TUI + CLI)')
     .version('0.1.0')
-    .enablePositionalOptions();
+    .enablePositionalOptions()
+    .action(async () => {
+      // Bare `scync` opens the primary experience in a real terminal. Piped or
+      // headless invocations keep the classic help output for scripts.
+      if (process.stdin.isTTY && process.stdout.isTTY) {
+        await runTui();
+      } else {
+        program.help();
+      }
+    });
 
   // --- Auth Commands ---
   program
@@ -66,8 +75,9 @@ export function createProgram(): Command {
   program
     .command('logout')
     .description('Sign out and remove stored session credentials')
-    .action(async () => {
-      await logoutCommand();
+    .option('-y, --yes', 'Confirm logout without prompting')
+    .action(async (opts) => {
+      await logoutCommand(opts);
     });
 
   program
@@ -178,6 +188,7 @@ export function createProgram(): Command {
     .option('--expires <date>', 'Update expiry date')
     .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
     .option('-f, --force', 'Override optimistic concurrency check')
+    .option('-y, --yes', 'Confirm a forced overwrite without prompting')
     .action(async (name, opts) => {
       await updateCommand(name, opts);
     });
@@ -191,6 +202,7 @@ export function createProgram(): Command {
     .option('-e, --env <environment>', 'Disambiguate matching secrets by environment')
     .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
     .option('-f, --force', 'Override optimistic concurrency check')
+    .option('-y, --yes', 'Confirm a forced rotation without prompting')
     .action(async (name, opts) => {
       await rotateCommand(name, opts);
     });
@@ -212,7 +224,7 @@ export function createProgram(): Command {
     .option('-p, --project <project>', 'Disambiguate matching secrets by project')
     .option('-e, --env <environment>', 'Disambiguate matching secrets by environment')
     .option('--id <id>', 'Disambiguate matching secrets by exact document ID')
-    .option('-f, --force', 'Skip delete confirmation prompt')
+    .option('-y, --yes', 'Confirm the deletion without prompting')
     .action(async (name, opts) => {
       await rmCommand(name, opts);
     });
@@ -225,17 +237,52 @@ export function createProgram(): Command {
     .option('-p, --project <project>', 'Filter secrets by project')
     .option('-e, --env <environment>', 'Filter secrets by environment (e.g. Development, Production)')
     .option('-o, --output <file>', 'Write output to file (default writes to stdout)')
-    .option('-f, --force', 'Overwrite target file if it already exists')
+    .option('-f, --force', 'Allow replacing an existing output file')
+    .option('-y, --yes', 'Confirm overwriting an existing file without prompting')
     .action(async (file, opts) => {
       await pullCommand(file, opts);
     });
 
-  program
+  const projectsCmd = program
     .command('projects')
-    .description('List all available vault projects with secret counts')
+    .description('List and manage vault projects')
     .option('--json', 'Output projects as JSON')
     .action(async (opts) => {
       await projectsCommand(opts);
+    });
+
+  projectsCmd
+    .command('create <name>')
+    .description('Create a project')
+    .option('--description <text>', 'Project description')
+    .option('--color <color>', 'Theme color (violet, blue, green, orange, red, pink, yellow, gray)')
+    .option('--icon <icon>', 'Optional icon name')
+    .option('--json', 'Output the created project as JSON')
+    .action(async (name, opts) => {
+      await createProjectCommand(name, opts);
+    });
+
+  projectsCmd
+    .command('update <project>')
+    .description('Update a project by name or id')
+    .option('-n, --name <name>', 'New project name')
+    .option('--description <text>', 'New description')
+    .option('--color <color>', 'New theme color')
+    .option('--icon <icon>', 'New icon')
+    .option('--json', 'Output the updated project as JSON')
+    .action(async (project, opts) => {
+      await updateProjectCommand(project, opts);
+    });
+
+  projectsCmd
+    .command('delete <project>')
+    .alias('rm')
+    .description('Delete a project (secrets become uncategorized or move to another project)')
+    .option('--move-to <project>', 'Move secrets to this project before deleting')
+    .option('-y, --yes', 'Confirm the deletion without prompting')
+    .option('--json', 'Output the result as JSON')
+    .action(async (project, opts) => {
+      await deleteProjectCommand(project, opts);
     });
 
   program
@@ -249,6 +296,7 @@ export function createProgram(): Command {
     .option('--overwrite', 'Overwrite existing secrets with matching names in target environment')
     .option('--dry-run', 'Preview changes without modifying the vault')
     .option('-f, --force', 'Bypass optimistic concurrency checks when overwriting')
+    .option('-y, --yes', 'Confirm overwriting existing secrets without prompting')
     .action(async (file, opts) => {
       await pushCommand(file, opts);
     });
@@ -311,6 +359,8 @@ export function createProgram(): Command {
     .option('--dir <directory>', 'Target directory for exported keys (default: ~/.ssh)')
     .option('--json', 'Output details as JSON')
     .option('--no-agent', 'Do not use background agent')
+    .option('-f, --force', 'Allow replacing existing key files')
+    .option('-y, --yes', 'Confirm replacing existing key files without prompting')
     .action(async (action, name, opts) => {
       await sshCommand(action, name, { ...opts, noAgent: opts.agent === false });
     });

@@ -768,6 +768,7 @@ export async function getProjects(uid: string, dbOverride?: Firestore): Promise<
       name: data.name || '',
       description: data.description || '',
       color: data.color || 'blue',
+      icon: data.icon || '',
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
     } as Project;
@@ -801,8 +802,12 @@ export async function updateProject(
 ): Promise<void> {
   const db = dbOverride || getDb();
   const ref = doc(db, "users", uid, "projects", projectId);
+  const updates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) updates[key] = value;
+  }
   await updateDoc(ref, {
-    ...data,
+    ...updates,
     updatedAt: serverTimestamp(),
   });
 }

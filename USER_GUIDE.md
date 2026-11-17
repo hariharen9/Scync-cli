@@ -120,6 +120,18 @@ scync ls          # list secrets
 
 If `scync ls` shows your secrets, everything is wired up correctly.
 
+### Managing projects
+
+```bash
+scync projects                                         # list projects + counts
+scync projects create "Payments" --color violet --description "Billing services"
+scync projects update Payments --name "Payments API" --color blue
+scync projects delete Payments --move-to MyApp --yes   # destructive: confirm
+```
+
+`projects delete` asks for confirmation unless `--yes`; secrets in the project
+are moved to `--move-to` or left uncategorized.
+
 ---
 
 ## 4. Reading secrets
@@ -228,8 +240,9 @@ scync set STRIPE_SECRET_KEY -s Stripe -t "API Key" -e Production -p myapp --note
 - `-t/--type` is a friendly type name (`API Key`, `Database URL`, ...)
 
 If a secret with that name already exists in that environment, `scync set`
-asks for confirmation and then behaves like `update` (use `--yes` to skip the
-prompt, `--force` to bypass conflict checks).
+asks for confirmation and then behaves like `update`. Use `--yes` to skip the
+prompt; `--force` bypasses conflict checks but still asks for confirmation
+(combine with `--yes` for automation).
 
 ### Update value and/or metadata
 
@@ -260,7 +273,7 @@ scync restore STRIPE_SECRET_KEY 1      # restore value from version 1
 
 ```bash
 scync rm OLD_KEY               # asks for confirmation
-scync rm OLD_KEY --force       # no prompt
+scync rm OLD_KEY --yes         # explicit confirmation for scripts
 ```
 
 ### About conflicts
@@ -268,7 +281,8 @@ scync rm OLD_KEY --force       # no prompt
 Every write checks that the secret hasn't changed in the web app (or another
 terminal) since you read it. If it changed in the meantime, the CLI refuses
 with `CONFLICT` (exit code 6) instead of silently overwriting. If you're sure
-you want to overwrite anyway, re-run with `--force`.
+you want to overwrite anyway, re-run with `--force` and confirm the prompt.
+For non-interactive use: `--force --yes`.
 
 ---
 
@@ -297,9 +311,9 @@ If no `--project`/`--env` is given, your configured defaults apply (section 8).
 ### Import an existing `.env` file
 
 ```bash
-scync push .env --dry-run     # preview only: what would be created/updated
-scync push .env               # create new secrets; ask before overwriting
-scync push .env --overwrite   # overwrite existing ones
+scync push .env --dry-run             # preview only: what would be created/updated
+scync push .env                       # create new secrets; ask before overwriting
+scync push .env --overwrite --yes     # overwrite existing ones (confirmed)
 ```
 
 - Duplicate keys in the file: last value wins, duplicates collapsed.
@@ -455,6 +469,7 @@ scync unlock [--timeout 1h|--no-agent]    unlock with master password
 scync lock                                lock now, purge keys from memory
 scync status                              vault + agent status
 scync projects                            list projects
+scync projects create/update/delete       manage projects (delete asks confirmation)
 
 # Secrets
 scync ls [filters]                        list (metadata only, fast)
@@ -464,12 +479,12 @@ scync set NAME                            create (value: prompt | stdin | --file
 scync update NAME -v "..."                update value/metadata
 scync rotate NAME -v "..."                rotate + record rotation
 scync restore NAME 1                      restore old version
-scync rm NAME [--force]                   delete
+scync rm NAME [--yes]                     delete (confirmed)
 
 # Workflows
 scync run -p myapp -- npm start           run with secrets in env (no .env file)
 scync pull [-o .env]                      export to .env format
-scync push .env [--dry-run|--overwrite]   import from .env
+scync push .env [--dry-run|--overwrite --yes]   import from .env
 scync watch                               stream live vault changes
 
 # Specialized

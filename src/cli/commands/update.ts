@@ -5,9 +5,10 @@ import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
 import { readSecretValueInput, type SecretInputOptions } from '../input.js';
+import { confirmDestructive } from '../confirm.js';
 import { normalizeEnvironment, normalizeSecretType, normalizeSecretStatus } from '../../core/constants.js';
 import { parseExpirationDate } from '../../utils/sanitize.js';
-import { successBanner, envBadge, statusBadge } from '../tui.js';
+import { successBanner, envBadge, statusBadge, warningBanner } from '../tui.js';
 import type { SecretType, Environment, SecretStatus, RecoveryCodeSet } from '../../core/types.js';
 import pc from 'picocolors';
 
@@ -21,6 +22,7 @@ export interface UpdateOptions extends SecretInputOptions {
   expires?: string;
   id?: string;
   force?: boolean;
+  yes?: boolean;
 }
 
 export async function updateCommand(name: string, options: UpdateOptions): Promise<void> {
@@ -37,6 +39,17 @@ export async function updateCommand(name: string, options: UpdateOptions): Promi
     env: options.env
   });
   const vault = await unlockVault(session.uid, db);
+
+  if (options.force && !options.yes) {
+    const confirmed = await confirmDestructive(
+      `--force will override remote version checks for '${target.name}' and may overwrite a newer value. Continue?`,
+      { yes: false }
+    );
+    if (!confirmed) {
+      warningBanner('Aborted update. Secret was not modified.');
+      return;
+    }
+  }
 
   // Determine new value:
   // 1. Explicit --value or --file options

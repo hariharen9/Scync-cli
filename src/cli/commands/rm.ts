@@ -3,7 +3,7 @@ import { getSecrets, deleteSecret, resolveProjectId } from '../../core/firestore
 import { getDb } from '../../core/firebase.js';
 import { AuthRequiredError } from '../errors.js';
 import { resolveSingleSecret } from '../resolve.js';
-import { promptConfirm } from '../prompts.js';
+import { confirmDestructive } from '../confirm.js';
 import { successBanner, warningBanner, envBadge } from '../tui.js';
 import pc from 'picocolors';
 
@@ -11,7 +11,7 @@ export interface RmOptions {
   project?: string;
   env?: string;
   id?: string;
-  force?: boolean;
+  yes?: boolean;
 }
 
 export async function rmCommand(name: string, options: RmOptions): Promise<void> {
@@ -27,15 +27,13 @@ export async function rmCommand(name: string, options: RmOptions): Promise<void>
     env: options.env
   });
 
-  if (!options.force) {
-    const confirmed = await promptConfirm(
-      `Are you sure you want to permanently delete secret '${target.name}' (${target.service} · ${target.environment})?`,
-      false
-    );
-    if (!confirmed) {
-      warningBanner('Aborted deletion. Secret was not removed.');
-      return;
-    }
+  const confirmed = await confirmDestructive(
+    `Permanently delete secret '${target.name}' (${target.service} · ${target.environment})?`,
+    { yes: options.yes }
+  );
+  if (!confirmed) {
+    warningBanner('Aborted deletion. Secret was not removed.');
+    return;
   }
 
   await deleteSecret(session.uid, target.id, target.name, target.service, db);

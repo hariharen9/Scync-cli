@@ -7,6 +7,7 @@ import { getSSHKeys } from '../../core/firestore.js';
 import { unlockVault } from '../../core/vault-session.js';
 import { AuthRequiredError, CliError, ExitCode } from '../errors.js';
 import { sanitizeKeyFileName, sanitizeTerminalOutput } from '../../utils/sanitize.js';
+import { confirmDestructive } from '../confirm.js';
 import { renderTable, successBanner, warningBanner } from '../tui.js';
 import pc from 'picocolors';
 
@@ -16,6 +17,7 @@ export interface SSHOptions {
   json?: boolean;
   noAgent?: boolean;
   force?: boolean;
+  yes?: boolean;
 }
 
 export async function sshCommand(action = 'ls', name?: string, options: SSHOptions = {}): Promise<void> {
@@ -111,11 +113,21 @@ export async function sshCommand(action = 'ls', name?: string, options: SSHOptio
       const privPath = path.join(targetDir, privFileName);
       const pubPath = path.join(targetDir, pubFileName);
 
-      if ((fs.existsSync(privPath) || fs.existsSync(pubPath)) && !options.force) {
-        throw new CliError(
-          `Target key file(s) already exist at '${privPath}'. Use --force to overwrite.`,
-          ExitCode.GENERAL_ERROR
+      if (fs.existsSync(privPath) || fs.existsSync(pubPath)) {
+        if (!options.force) {
+          throw new CliError(
+            `Target key file(s) already exist at '${privPath}'. Use --force to overwrite.`,
+            ExitCode.GENERAL_ERROR
+          );
+        }
+        const confirmed = await confirmDestructive(
+          `--force will overwrite the existing key file(s) at '${privPath}'. Replace them?`,
+          { yes: options.yes }
         );
+        if (!confirmed) {
+          warningBanner('Aborted SSH key export. Existing files were not changed.');
+          return;
+        }
       }
 
       const vault = await unlockVault(session.uid, db, undefined, { noAgent: options.noAgent });

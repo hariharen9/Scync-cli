@@ -305,7 +305,8 @@ export async function saveSecret(
   uid: string,
   vault: VaultSession,
   draft: LockedSecretDraft,
-  existing?: StoredSecret
+  existing?: StoredSecret,
+  options: { force?: boolean } = {}
 ): Promise<SaveSecretResult> {
   const db = getDb();
   const formData = buildSecretFormData(draft);
@@ -314,6 +315,7 @@ export async function saveSecret(
     const expectedVersion = existing.version ?? 1;
     await updateSecret(uid, vault, existing.id, formData, existing, 'updated', db, {
       expectedVersion,
+      force: options.force,
     });
     return { id: existing.id, version: expectedVersion + 1 };
   }
@@ -326,7 +328,8 @@ export async function rotateSecret(
   uid: string,
   vault: VaultSession,
   existing: StoredSecret,
-  value: string
+  value: string,
+  options: { force?: boolean } = {}
 ): Promise<number> {
   const decrypted = await decryptSecret(vault, existing);
   const expectedVersion = existing.version ?? 1;
@@ -351,7 +354,7 @@ export async function rotateSecret(
     existing,
     'rotated',
     getDb(),
-    { expectedVersion }
+    { expectedVersion, force: options.force }
   );
 
   return expectedVersion + 1;
@@ -389,7 +392,7 @@ export async function addProject(
 export async function editProject(
   uid: string,
   projectId: string,
-  data: { name?: string; description?: string; color?: string }
+  data: { name?: string; description?: string; color?: string; icon?: string }
 ): Promise<void> {
   await updateProject(
     uid,
@@ -398,6 +401,7 @@ export async function editProject(
       name: data.name?.trim(),
       description: data.description?.trim(),
       color: data.color as Project['color'] | undefined,
+      icon: data.icon,
     },
     getDb()
   );
