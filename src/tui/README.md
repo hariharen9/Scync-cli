@@ -16,6 +16,13 @@ scync tui --no-agent
 It requires an interactive TTY. Piped/CI invocations get a clear error and
 should use the regular commands instead.
 
+On launch, a short animated splash shows the brand, session identity, vault,
+agent and crypto status while bootstrap runs. Any key skips it once ready;
+otherwise it advances automatically. On exit, `buildExitScreen()` prints a
+branded vault-sealed card to the normal terminal buffer (so it stays in
+scrollback), including the reason for closure and a reminder that no plaintext
+was written.
+
 ## Architecture
 
 ```
@@ -29,6 +36,8 @@ src/tui/
 ├── editor.ts       # cursor-aware text editor used by form fields
 ├── overlays.ts     # help, confirm, picker, viewer and form rendering
 ├── widgets.ts      # header, sidebar, footer, panels, stat tiles, lists
+├── logo.ts         # block wordmark + animated sweep
+├── views/splash.ts # branded secure-session launch sequence
 ├── format.ts       # health/attention, filtering, sorting, colors, masks
 ├── data.ts         # auth, workspace loading, decrypt/copy/export/import/run
 ├── state.ts        # state shapes, view metadata, modal/form types

@@ -207,6 +207,42 @@ describe('TUI views render without overflowing', () => {
     expect(narrow).toContain('DETAIL');
   });
 
+  it('renders the launch splash at wide and compact sizes', () => {
+    const app = makeApp();
+    app.state.screen = 'splash';
+    app.splashStarted = Date.now() - 600;
+    app.splashReady = true;
+    app.state.unlocked = false;
+
+    const wide = assertFrame(app, 120, 34).join('\n');
+    expect(wide).toContain('ZERO-KNOWLEDGE');
+    expect(wide).toContain('SECURE SESSION');
+    expect(wide).toContain('PRESS ANY KEY');
+
+    const compact = assertFrame(app, 70, 24).join('\n');
+    expect(compact).toContain('SCYNC');
+    expect(compact).toContain('SECURE SESSION');
+
+    const minimal = assertFrame(app, 50, 16).join('\n');
+    expect(minimal).toContain('SCYNC');
+    expect(minimal).toContain('PRESS ANY KEY');
+  });
+
+  it('renders the branded exit screen', () => {
+    const app = makeApp();
+    app.state.unlocked = true;
+    const sealed = app.buildExitScreen(false).map((line) => stripAnsi(line));
+    expect(sealed.join('\n')).toContain('VAULT SEALED');
+    expect(sealed.join('\n')).toContain('dev@example.com');
+    expect(sealed.join('\n')).toContain('AES-256-GCM');
+    for (const line of sealed) {
+      expect(displayWidth(line)).toBe(78);
+    }
+
+    const failed = app.buildExitScreen(true).map((line) => stripAnsi(line));
+    expect(failed.join('\n')).toContain('SESSION CLOSED');
+  });
+
   it('renders the login screen', () => {
     const app = makeApp();
     app.state.screen = 'login';

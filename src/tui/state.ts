@@ -81,7 +81,7 @@ export interface Toast {
 }
 
 export interface AppState {
-  screen: 'starting' | 'login' | 'main';
+  screen: 'starting' | 'splash' | 'login' | 'main';
   view: ViewId;
   data: WorkspaceData;
   meta: VaultMeta | null;

@@ -52,6 +52,11 @@ export function createProgram(): Command {
     .version('0.1.0')
     .enablePositionalOptions()
     .action(async () => {
+      // Do not treat an unknown command as a request to open the TUI.
+      if (program.args.length > 0) {
+        program.error(`Unknown command '${program.args[0]}'`);
+        return;
+      }
       // Bare `scync` opens the primary experience in a real terminal. Piped or
       // headless invocations keep the classic help output for scripts.
       if (process.stdin.isTTY && process.stdout.isTTY) {

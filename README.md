@@ -2,7 +2,7 @@
 
 > Zero-knowledge developer secrets manager with a full-screen terminal UI and a scriptable CLI.
 
-[![Tests](https://img.shields.io/badge/tests-81%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-83%20passed-brightgreen.svg)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -24,6 +24,8 @@ scync tui --no-agent
 ```
 
 Bare `scync` opens the TUI when run in a real terminal; piped/headless runs show help instead.
+
+Launching plays a short animated **secure-session splash** (identity, vault, agent and crypto status) and then settles into the app. Quitting restores your terminal and leaves a compact **vault-sealed farewell card** in scrollback with the session summary. Any key skips the splash once it is ready; it auto-advances otherwise.
 
 A full-screen, web-app-like terminal interface:
 
@@ -250,8 +252,8 @@ These are project rules, not suggestions:
 
 ```bash
 npm run typecheck
-npm test               # 13 suites, 81 unit tests (incl. headless TUI render/key/edit)
-npm run test:emulator  # 19 suites, 108 tests incl. Firebase emulator integration
+npm test               # 13 suites, 83 unit tests (incl. headless TUI render/key/edit)
+npm run test:emulator  # 19 suites, 110 tests incl. Firebase emulator integration
 npm run build
 ```
 

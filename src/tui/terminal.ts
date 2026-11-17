@@ -22,6 +22,7 @@ export class Terminal {
   private readonly parser = new KeyParser();
   private keyHandler: ((key: Key) => void) | null = null;
   private errorHandler: ((err: unknown) => void) | null = null;
+  private inputEndHandler: (() => void) | null = null;
   private resizeHandler: (() => void) | null = null;
   private active = false;
   private previousLines: string[] = [];
@@ -110,6 +111,10 @@ export class Terminal {
     this.errorHandler = handler;
   }
 
+  onInputEndEvent(handler: () => void): void {
+    this.inputEndHandler = handler;
+  }
+
   onResizeEvent(handler: () => void): void {
     this.resizeHandler = handler;
   }
@@ -196,7 +201,11 @@ export class Terminal {
   }
 
   private onInputEnd(): void {
-    this.keyHandler?.({ type: 'special', name: 'ctrl-c' });
+    if (this.inputEndHandler) {
+      this.inputEndHandler();
+    } else {
+      this.keyHandler?.({ type: 'special', name: 'ctrl-c' });
+    }
   }
 
   private onResize(): void {

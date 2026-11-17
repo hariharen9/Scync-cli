@@ -51,6 +51,7 @@ import {
 import {
   EMPTY_SECRET_FILTER,
   filterSecrets,
+  formatCountdown,
   formatDateTime,
   projectColorHex,
   projectName,
@@ -74,8 +75,8 @@ import {
 } from './state.js';
 import { createTheme, type Theme } from './theme.js';
 import { Terminal } from './terminal.js';
-import { computeLayout, drawFooter, drawHeader, drawSidebar, type Layout } from './widgets.js';
-import { clamp, wrapText } from './width.js';
+import { computeLayout, drawFooter, drawHeader, drawLabelValue, drawPanel, drawSidebar, type Layout } from './widgets.js';
+import { clamp, sanitizeText, singleLine, wrapText } from './width.js';
 
 import { handleCertsKey, renderCertsView } from './views/certs.js';
 import { handleDashboardKey, renderDashboard } from './views/dashboard.js';
@@ -87,6 +88,7 @@ import { handleSettingsKey, renderSettingsView } from './views/settings.js';
 import { handleSshKey, renderSshView } from './views/ssh.js';
 import { handleToolsKey, renderToolsView } from './views/tools.js';
 import { handleTotpKey, renderTotpView } from './views/totp.js';
+import { renderSplash } from './views/splash.js';
 
 const VERSION = '0.1.0';
 const REVEAL_MS = 15_000;
@@ -117,10 +119,20 @@ export class TuiApp {
   now = Date.now();
   layout: Layout = computeLayout(100, 30);
   readonly version = VERSION;
+  splashStarted = 0;
+  splashReady = false;
 
   private options: TuiOptions;
   private renderTimer: NodeJS.Timeout | null = null;
   private tickTimer: NodeJS.Timeout | null = null;
+  private splashTimer: NodeJS.Timeout | null = null;
+  private splashAutoTimer: NodeJS.Timeout | null = null;
+  private splashResolve: (() => void) | null = null;
+  private splashSkip = false;
+  private inSplash = false;
+  private entered = false;
+  private exitScreenPrinted = false;
+  private exitReason: 'quit' | 'error' | 'input' | 'interrupt' = 'quit';
   private resolveExit: (() => void) | null = null;
   private exiting = false;
   private agentTtlUntil = 0;
@@ -150,34 +162,49 @@ export class TuiApp {
 
     this.theme = createTheme({ ascii: this.options.ascii });
     this.terminal.enter();
+    this.entered = true;
     this.terminal.onKey((key) => this.handleKey(key));
     this.terminal.onError((err) => {
       this.toast(messageOf(err), 'error');
       this.requestRender();
     });
+    this.terminal.onInputEndEvent(() => {
+      this.exitReason = 'input';
+      this.shutdown('input');
+    });
     this.terminal.onResizeEvent(() => this.requestRender());
 
-    const onSignal = () => this.shutdown();
+    const onSignal = () => this.shutdown('interrupt');
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
 
     this.startTick();
 
-    try {
-      this.state.screen = 'starting';
-      this.requestRender();
-      await this.bootstrap();
-      this.renderNow();
+    const exitPromise = new Promise<void>((resolve) => {
+      this.resolveExit = resolve;
+    });
+    if (this.exiting) this.resolveExit?.();
+    let failed = false;
 
-      await new Promise<void>((resolve) => {
-        this.resolveExit = resolve;
-      });
+    try {
+      await this.showSplash();
+      if (!this.exiting) {
+        this.renderNow();
+        await exitPromise;
+      }
+    } catch (err) {
+      failed = true;
+      if (this.exitReason === 'quit') this.exitReason = 'error';
+      throw err;
     } finally {
       process.removeListener('SIGINT', onSignal);
       process.removeListener('SIGTERM', onSignal);
       this.stopTick();
+      this.stopSplashTimer();
+      this.finishSplash();
       if (this.renderTimer) clearTimeout(this.renderTimer);
       this.terminal.exit();
+      this.printExitScreen(failed);
       this.secretPlaintext.clear();
       this.passwordPlaintext.clear();
       this.totpSecrets.clear();
@@ -193,7 +220,8 @@ export class TuiApp {
       } catch (err) {
         // Never leave the terminal in the alternate screen because a render
         // failed. Restore first, then surface the error.
-        this.shutdown();
+        this.exitReason = 'error';
+        this.shutdown('error');
         setTimeout(() => {
           throw err;
         }, 0);
@@ -231,7 +259,9 @@ export class TuiApp {
 
     let cursor: { x: number; y: number } | null = null;
 
-    if (this.state.screen === 'starting') {
+    if (this.state.screen === 'splash') {
+      renderSplash(this, buf, width, height);
+    } else if (this.state.screen === 'starting') {
       const msg = 'Loading vault…';
       buf.put(Math.floor((width - msg.length) / 2), Math.floor(height / 2), msg, {
         fg: this.theme.p.accentSoft,
@@ -250,11 +280,81 @@ export class TuiApp {
     return { buf, cursor };
   }
 
+  private async showSplash(): Promise<void> {
+    if (this.exiting) return;
+    this.state.screen = 'splash';
+    this.splashStarted = Date.now();
+    this.now = this.splashStarted;
+    this.splashReady = false;
+    this.splashSkip = false;
+    this.inSplash = true;
+    this.startSplashTimer();
+    this.requestRender();
+
+    try {
+      await this.bootstrap();
+    } finally {
+      this.inSplash = false;
+    }
+
+    if (this.exiting) return;
+
+    this.splashReady = true;
+    this.requestRender();
+
+    if (!this.splashSkip) {
+      await new Promise<void>((resolve) => {
+        this.splashResolve = resolve;
+        this.splashAutoTimer = setTimeout(() => this.finishSplash(), 1300);
+      });
+    }
+
+    this.finishSplash();
+    this.stopSplashTimer();
+    if (this.exiting) return;
+
+    this.state.screen = this.session ? 'main' : 'login';
+    this.state.modal = null;
+    this.requestRender();
+  }
+
+  private startSplashTimer(): void {
+    this.stopSplashTimer();
+    this.splashTimer = setInterval(() => {
+      this.now = Date.now();
+      this.requestRender();
+    }, 80);
+    if (typeof this.splashTimer.unref === 'function') this.splashTimer.unref();
+  }
+
+  private stopSplashTimer(): void {
+    if (this.splashTimer) {
+      clearInterval(this.splashTimer);
+      this.splashTimer = null;
+    }
+  }
+
+  private finishSplash(): void {
+    if (this.splashAutoTimer) {
+      clearTimeout(this.splashAutoTimer);
+      this.splashAutoTimer = null;
+    }
+    const resolve = this.splashResolve;
+    this.splashResolve = null;
+    resolve?.();
+  }
+
   // ─── Keyboard routing ───
 
   private handleKey(key: Key): void {
     if (key.type === 'special' && key.name === 'ctrl-c') {
       this.shutdown();
+      return;
+    }
+
+    if (this.state.screen === 'splash') {
+      if (this.splashReady) this.finishSplash();
+      else this.splashSkip = true;
       return;
     }
 
@@ -385,14 +485,14 @@ export class TuiApp {
 
     if (!session) {
       this.session = null;
-      this.state.screen = 'login';
+      this.state.screen = this.inSplash ? 'splash' : 'login';
       this.state.login.error = null;
       return;
     }
 
     this.session = session;
     await this.reloadWorkspace(true);
-    this.state.screen = 'main';
+    this.state.screen = this.inSplash ? 'splash' : 'main';
     this.state.unlocked = false;
     this.vault = null;
 
@@ -2533,10 +2633,13 @@ export class TuiApp {
     }
   }
 
-  private shutdown(): void {
+  private shutdown(reason: 'quit' | 'error' | 'input' | 'interrupt' = 'quit'): void {
     if (this.exiting) return;
     this.exiting = true;
+    this.exitReason = reason;
     this.stopTick();
+    this.stopSplashTimer();
+    this.finishSplash();
     if (this.renderTimer) {
       clearTimeout(this.renderTimer);
       this.renderTimer = null;
@@ -2544,6 +2647,85 @@ export class TuiApp {
     this.terminal.exit();
     this.resolveExit?.();
     this.resolveExit = null;
+  }
+
+  /** Compact branded farewell printed after the alternate screen is restored. */
+  buildExitScreen(failed = false): string[] {
+    const { p } = this.theme;
+    const width = Math.min(78, Math.max(46, (process.stdout.columns || 80) - 2));
+    const height = 10;
+    const buf = new Buffer(
+      width,
+      height,
+      { bg: p.bg, fg: p.text },
+      this.theme.colorizer
+    );
+    const failedExit = failed || this.exitReason === 'error';
+    const title = failedExit ? 'SCYNC · SESSION CLOSED' : 'SCYNC · VAULT SEALED';
+
+    drawPanel(buf, this.theme, { x: 0, y: 0, w: width, h: height }, title, {
+      focused: true,
+      background: p.panel,
+      footer: 'Run `scync` to reopen · no plaintext written to disk',
+    });
+
+    const x = 2;
+    const w = width - 4;
+    let y = 2;
+    const account = this.session?.email || this.session?.displayName || 'signed out';
+    drawLabelValue(buf, this.theme, x, y++, 'Account', singleLine(account), w, p.text);
+
+    const vault = this.state.data.meta
+      ? `${this.state.unlocked ? 'unlocked' : 'locked'} · encrypted`
+      : 'not initialized';
+    drawLabelValue(
+      buf,
+      this.theme,
+      x,
+      y++,
+      'Vault',
+      vault,
+      w,
+      this.state.unlocked ? p.warning : p.success
+    );
+
+    const agent =
+      this.state.agent.status === 'unlocked'
+        ? `running · ${formatCountdown(this.state.agent.ttlRemainingMs)} TTL`
+        : this.state.agent.status;
+    drawLabelValue(
+      buf,
+      this.theme,
+      x,
+      y++,
+      'Agent',
+      agent,
+      w,
+      this.state.agent.status === 'unlocked' ? p.accentSoft : p.muted
+    );
+
+    const reason =
+      this.exitReason === 'error'
+        ? 'closed after an error'
+        : this.exitReason === 'input'
+          ? 'terminal input ended'
+          : this.exitReason === 'interrupt'
+            ? 'interrupted'
+            : 'closed by user';
+    drawLabelValue(buf, this.theme, x, y++, 'Session', reason, w, p.faint);
+    drawLabelValue(buf, this.theme, x, y++, 'Crypto', 'AES-256-GCM · PBKDF2 310k', w, p.accentSoft);
+
+    return buf.toLines();
+  }
+
+  private printExitScreen(failed = false): void {
+    if (!this.entered || this.exitScreenPrinted) return;
+    this.exitScreenPrinted = true;
+    try {
+      process.stdout.write('\n' + this.buildExitScreen(failed).join('\n') + '\n\n');
+    } catch {
+      // Best effort: the terminal may already be gone.
+    }
   }
 }
 

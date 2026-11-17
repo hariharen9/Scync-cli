@@ -47,7 +47,13 @@ This log tracks architectural and design decisions made during the development o
 - **Context:** The TUI gained project CRUD and confirmation dialogs while the CLI still had list-only projects and several `--force` paths that bypassed prompts. The project rule is now that user-facing capabilities and safety behavior apply to **both** surfaces.
 - **Decision:** Add `scync projects create|update|delete` using the same core project functions as the TUI. Introduce `cli/confirm.ts`: interactive runs always confirm destructive actions; non-interactive runs must pass `--yes` or they refuse instead of hanging. `--force` continues to bypass the underlying safety check (concurrency, existing file, conflict) but no longer silently skips confirmation; automation uses `--force --yes`. Applies to `rm`, `update`, `rotate`, `pull`, `push`, `ssh export`, `logout` and `projects delete`. The TUI mirrors this with confirms for secret/project delete, logout, `.env` overwrite, SSH overwrite, import overwrite/force, and version-conflict overwrite.
 - **Compatibility:** `rm --force` was replaced by `rm --yes`; smoke/emulator tests and docs were updated. Existing commands otherwise keep their names and flags.
-- **Validation:** Emulator coverage now exercises project create/update/delete; the suite passes 108/108. The project update path also normalizes missing `icon` values and filters `undefined` fields before Firestore writes.
+- **Validation:** Emulator coverage now exercises project create/update/delete; the extended suite passes 110/110. The project update path also normalizes missing `icon` values and filters `undefined` fields before Firestore writes.
+
+### Decision 26: Branded launch and exit sequences
+- **Context:** The TUI dropped straight into the vault (or appeared empty during bootstrap) and returned to the shell with no confirmation of what happened. The user asked for a strong start/end experience.
+- **Decision:** Add a `splash` screen with a block `SCYNC` wordmark, animated sweep, typewriter tagline, dot texture, secure-session card (identity, vault, agent, crypto) and progress/spinner while `bootstrap()` runs. It auto-advances 1.3s after ready and any key skips it. On exit, restore the terminal and print a compact `SCYNC · VAULT SEALED` card to scrollback with account, vault/agent state, exit reason and crypto summary; errors print `SESSION CLOSED`. Early stdin closure now reports `terminal input ended` instead of silently returning to the prompt.
+- **Safety:** Neither screen renders secrets or plaintext; the exit card reports only metadata and the exit reason.
+- **Validation:** Headless tests cover the splash at wide/compact sizes and the sealed/error exit cards; the wordmark and splash were visually inspected for clipping and alignment.
 
 ---
 
