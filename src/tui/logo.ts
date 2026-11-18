@@ -25,19 +25,23 @@ export function drawWordmark(
   y: number
 ): void {
   const { p } = theme;
+  const ascii = theme.g.v === '|';
+  const rows = ascii ? WORDMARK.map((line) => line.replace(/█/g, '#')) : WORDMARK;
+  const underline = ascii ? '-' : '─';
+  const sweepGlyph = ascii ? '#' : '━';
 
   // Soft depth shadow (skip the final row so it does not dirty the underline).
-  for (let row = 0; row < WORDMARK.length - 1; row++) {
-    buf.put(x + 1, y + row + 1, WORDMARK[row], { fg: p.accentDim }, WORDMARK_WIDTH);
+  for (let row = 0; row < rows.length - 1; row++) {
+    buf.put(x + 1, y + row + 1, rows[row], { fg: p.accentDim }, WORDMARK_WIDTH);
   }
 
-  for (let row = 0; row < WORDMARK.length; row++) {
+  for (let row = 0; row < rows.length; row++) {
     const color = p[ROW_COLORS[row]];
-    buf.put(x, y + row, WORDMARK[row], { fg: color, bold: true }, WORDMARK_WIDTH);
+    buf.put(x, y + row, rows[row], { fg: color, bold: true }, WORDMARK_WIDTH);
   }
 
-  buf.hline(x, y + WORDMARK.length, WORDMARK_WIDTH, { fg: p.accentDim }, '─');
-  const sweep = '━━━━━━━━';
+  buf.hline(x, y + WORDMARK.length, WORDMARK_WIDTH, { fg: p.accentDim }, underline);
+  const sweep = sweepGlyph.repeat(8);
   const travel = Math.max(1, WORDMARK_WIDTH - sweep.length);
   const offset = Math.floor((Date.now() / 40) % travel);
   buf.put(x + offset, y + WORDMARK.length, sweep, { fg: p.accentSoft, bold: true }, sweep.length);

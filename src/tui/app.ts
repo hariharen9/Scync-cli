@@ -2651,7 +2651,8 @@ export class TuiApp {
 
   /** Compact branded farewell printed after the alternate screen is restored. */
   buildExitScreen(failed = false): string[] {
-    const { p } = this.theme;
+    const { p, g } = this.theme;
+    const sep = g.v === '|' ? ' | ' : ' · ';
     const width = Math.min(78, Math.max(46, (process.stdout.columns || 80) - 2));
     const height = 10;
     const buf = new Buffer(
@@ -2676,7 +2677,7 @@ export class TuiApp {
     drawLabelValue(buf, this.theme, x, y++, 'Account', singleLine(account), w, p.text);
 
     const vault = this.state.data.meta
-      ? `${this.state.unlocked ? 'unlocked' : 'locked'} · encrypted`
+      ? `${this.state.unlocked ? 'unlocked' : 'locked'}${sep}encrypted`
       : 'not initialized';
     drawLabelValue(
       buf,
@@ -2691,7 +2692,7 @@ export class TuiApp {
 
     const agent =
       this.state.agent.status === 'unlocked'
-        ? `running · ${formatCountdown(this.state.agent.ttlRemainingMs)} TTL`
+        ? `running${sep}${formatCountdown(this.state.agent.ttlRemainingMs)} TTL`
         : this.state.agent.status;
     drawLabelValue(
       buf,
@@ -2713,7 +2714,16 @@ export class TuiApp {
             ? 'interrupted'
             : 'closed by user';
     drawLabelValue(buf, this.theme, x, y++, 'Session', reason, w, p.faint);
-    drawLabelValue(buf, this.theme, x, y++, 'Crypto', 'AES-256-GCM · PBKDF2 310k', w, p.accentSoft);
+    drawLabelValue(
+      buf,
+      this.theme,
+      x,
+      y++,
+      'Crypto',
+      `AES-256-GCM${sep}PBKDF2 310k`,
+      w,
+      p.accentSoft
+    );
 
     return buf.toLines();
   }

@@ -16,6 +16,10 @@ function putCentered(buf: Buffer, width: number, y: number, text: string, style:
 export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: number): void {
   const { theme, state } = app;
   const { p, g } = theme;
+  const ascii = g.v === '|';
+  const sep = ascii ? ' | ' : ' · ';
+  const dot = ascii ? '.' : '·';
+  const ellipsis = ascii ? '...' : '…';
   const elapsed = Math.max(0, app.now - app.splashStarted);
 
   buf.fill(0, 0, width, height, { bg: p.bg, fg: p.text });
@@ -28,7 +32,7 @@ export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: nu
   for (let y = 4; y < height - 4; y += 4) {
     for (let x = 2; x < width - 2; x += 4) {
       if (x >= marginLeft && x <= marginRight) continue;
-      buf.set(x, y, '·', { fg: p.border });
+      buf.set(x, y, dot, { fg: p.border });
     }
   }
 
@@ -56,8 +60,8 @@ export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: nu
       ? `${state.unlocked ? 'unlocked' : 'locked'} / initialized`
       : app.splashReady
         ? 'not initialized'
-        : 'reading metadata…';
-    const statusLine = `vault ${vault} · agent ${state.agent.status}`;
+        : `reading metadata${ellipsis}`;
+    const statusLine = `vault ${vault}${sep}agent ${state.agent.status}`;
     buf.put(2, y, truncate(statusLine, width - 4), { fg: p.faint }, width - 4);
     y += 2;
     drawProgressBar(buf, theme, 2, y, Math.max(10, width - 4), app.splashReady ? 1 : Math.min(0.9, elapsed / 1400));
@@ -66,13 +70,13 @@ export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: nu
       ? app.session
         ? 'PRESS ANY KEY TO OPEN THE VAULT'
         : 'PRESS ANY KEY TO SIGN IN'
-      : `${g.spinner[Math.floor(elapsed / 80) % g.spinner.length]} SECURE SESSION…`;
+      : `${g.spinner[Math.floor(elapsed / 80) % g.spinner.length]} SECURE SESSION${ellipsis}`;
     putCentered(buf, width, Math.min(y, height - 3), prompt, {
       fg: app.splashReady ? p.accentSoft : p.faint,
       bold: app.splashReady,
     });
     buf.hline(0, height - 2, width, { fg: p.border }, g.h);
-    putCentered(buf, width, height - 1, 'AES-256-GCM · keys stay local', { fg: p.faint });
+    putCentered(buf, width, height - 1, `AES-256-GCM${sep}keys stay local`, { fg: p.faint });
     return;
   }
 
@@ -157,7 +161,7 @@ export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: nu
     ? app.session
       ? 'PRESS ANY KEY TO OPEN THE VAULT'
       : 'PRESS ANY KEY TO SIGN IN'
-    : `${g.spinner[Math.floor(elapsed / 80) % g.spinner.length]} ESTABLISHING SECURE SESSION…`;
+    : `${g.spinner[Math.floor(elapsed / 80) % g.spinner.length]} ESTABLISHING SECURE SESSION${ellipsis}`;
   const pulse = app.splashReady && Math.floor(elapsed / 450) % 2 === 0;
   putCentered(buf, width, y, prompt, {
     fg: app.splashReady ? (pulse ? p.accentSoft : p.accent) : p.faint,
@@ -166,6 +170,6 @@ export function renderSplash(app: TuiApp, buf: Buffer, width: number, height: nu
 
   // Bottom chrome.
   buf.hline(0, height - 2, width, { fg: p.border }, g.h);
-  const footer = 'AES-256-GCM · PBKDF2 310k · keys never leave this device';
+  const footer = `AES-256-GCM${sep}PBKDF2 310k${sep}keys never leave this device`;
   putCentered(buf, width, height - 1, footer, { fg: p.faint });
 }
