@@ -49,7 +49,7 @@ export async function unlockCommand(options: UnlockOptions = {}): Promise<void> 
   const meta = await getVaultMeta(session.uid, db);
   if (!meta) {
     throw new CliError(
-      'Vault is not initialized. Please set up your vault on the Scync web app first.',
+      'No vault found for this account. Create one at https://scync.space/app, then run scync unlock again.',
       ExitCode.GENERAL_ERROR
     );
   }

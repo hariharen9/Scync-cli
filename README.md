@@ -2,7 +2,8 @@
 
 > Zero-knowledge developer secrets manager with a full-screen terminal UI and a scriptable CLI.
 
-[![Tests](https://img.shields.io/badge/tests-83%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-105%20passed-brightgreen.svg)]()
+[![npm](https://img.shields.io/badge/npm-scync--cli-cb3837.svg)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -48,9 +49,14 @@ A full-screen, web-app-like terminal interface:
 ← / →          previous / next view       Ctrl+R    refresh vault data
 ↑ / ↓          move selection             ?         help overlay
 Enter          open / confirm             q         quit (Ctrl+C works too)
-Tab            switch pane                /         search current list
+Tab            switch pane                /         search the whole vault
 Esc            back
 ```
+
+`/` opens one global palette from any view. It searches secrets, projects,
+passwords, TOTP tokens, SSH keys and certificates at once. Type to filter,
+move with `↑`/`↓`, `Enter` to open the item in its view, `Esc` to close.
+`Ctrl+⌫`/`Ctrl+W` deletes a word, `Ctrl+U` clears the query.
 
 `Esc` is the universal back key: close modal → leave detail pane → clear search/filters → return to the previous view (dashboard fallback).
 
@@ -156,26 +162,61 @@ scync update KEY --value new --force --yes
 **Requirements:** Node.js `>= 20.0.0` (native WebCrypto).
 
 ```bash
-git clone https://github.com/scync/scync-cli.git
-cd scync-cli
+npm install -g scync-cli
+scync --version
+```
+
+Then just run:
+
+```bash
+scync            # opens the terminal UI
+```
+
+### Works out of the box
+
+The CLI ships with the hosted Scync backend already configured. No `.env`, no
+project setup, no build step.
+
+1. `scync` → sign in with email/password or Google.
+2. Press `U` to unlock with your master password.
+
+New to Scync? Create your account and vault at
+<https://scync.space/app> first, then sign in from the terminal. The same
+account, master password and secrets work in both places.
+
+### Self-hosting
+
+Point the CLI at your own Firebase project by creating `~/.scync/.env`:
+
+```dotenv
+SCYNC_FIREBASE_API_KEY=...
+SCYNC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+SCYNC_FIREBASE_PROJECT_ID=your-project
+SCYNC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+SCYNC_FIREBASE_MESSAGING_SENDER_ID=...
+SCYNC_FIREBASE_APP_ID=1:...:web:...
+# Optional: your own Google OAuth desktop client
+SCYNC_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+SCYNC_GOOGLE_CLIENT_SECRET=...
+```
+
+Precedence is: `SCYNC_*` environment variables (or `~/.scync/.env`) →
+`VITE_*` development variables → bundled hosted defaults. Emulator mode is
+opt-in only (`SCYNC_USE_EMULATORS=true`).
+
+Google sign-in uses a bundled public desktop client id with PKCE and a
+loopback redirect; no client secret is shipped. Email/password sign-in always
+works and needs no extra configuration.
+
+### From source (contributors)
+
+```bash
+git clone https://github.com/hariharen9/Scync-cli.git
+cd Scync-cli
 npm install
 npm run build
 npm link        # makes `scync` available globally
 ```
-
-Firebase client configuration is public, not secret. Put it in `~/.scync/.env` (or use the emulator):
-
-```dotenv
-SCYNC_FIREBASE_API_KEY=...
-SCYNC_FIREBASE_AUTH_DOMAIN=...
-SCYNC_FIREBASE_PROJECT_ID=...
-SCYNC_FIREBASE_APP_ID=...
-# Optional Google OAuth loopback
-SCYNC_GOOGLE_CLIENT_ID=...
-SCYNC_GOOGLE_CLIENT_SECRET=...
-```
-
-Self-hosted Firebase projects work through the same variables.
 
 ---
 
@@ -252,8 +293,8 @@ These are project rules, not suggestions:
 
 ```bash
 npm run typecheck
-npm test               # 13 suites, 83 unit tests (incl. headless TUI render/key/edit)
-npm run test:emulator  # 19 suites, 110 tests incl. Firebase emulator integration
+npm test               # 16 suites, 105 unit tests (incl. headless TUI render/key/edit)
+npm run test:emulator  # Firebase emulator integration
 npm run build
 ```
 

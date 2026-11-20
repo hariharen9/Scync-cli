@@ -4,5 +4,6 @@ dist/
 .env.local
 .env.*.local
 *.log
+*.tgz
 coverage/
 .DS_Store

@@ -43,16 +43,23 @@ It works exactly like `ssh-agent`: one unlock, then fast commands for a while.
 Requirements: Node.js 20+.
 
 ```bash
-cd scync-cli
+npm install -g scync-cli
+scync --version
+scync             # opens the terminal UI
+```
+
+The hosted Scync backend is bundled, so there is nothing else to configure.
+New to Scync? Create your account and vault at
+<https://scync.space/app> first, then sign in from the terminal.
+
+Working on the CLI itself:
+
+```bash
+git clone https://github.com/hariharen9/Scync-cli.git
+cd Scync-cli
 npm install
 npm run build
 npm link        # makes `scync` available globally in your terminal
-```
-
-Check it works:
-
-```bash
-scync --version
 ```
 
 ---
@@ -73,7 +80,11 @@ scync login --email you@example.com
 ```
 
 You'll be prompted for your password (hidden as you type). After this you
-usually never need to log in again on this machine.
+usually never need to log in again on this machine. The stored login expires
+after 30 days by default; see `auth.maxAge` in section 8.
+
+If this account has no vault yet, the CLI tells you and points you to
+<https://scync.space/app> to create one. Then press `U` to unlock.
 
 Verify with:
 
@@ -405,6 +416,32 @@ The 1-hour Firebase ID token refreshes automatically and never extends the
 30-day login lifetime. Raise or lower it with `auth.maxAge` (`7d`, `12h`), or
 disable the cap entirely with `auth.maxAge off` — not recommended on shared
 machines. `scync whoami` shows both timers.
+
+### Backend: hosted vs self-hosted
+
+The CLI defaults to the hosted Scync backend. To self-host, create
+`~/.scync/.env` (never a `.env` in the current directory) with your project's
+public Firebase web config:
+
+```dotenv
+SCYNC_FIREBASE_API_KEY=...
+SCYNC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+SCYNC_FIREBASE_PROJECT_ID=your-project
+SCYNC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+SCYNC_FIREBASE_MESSAGING_SENDER_ID=...
+SCYNC_FIREBASE_APP_ID=1:...:web:...
+```
+
+Precedence:
+
+1. `SCYNC_*` environment variables or `~/.scync/.env`
+2. `VITE_*` variables (development)
+3. bundled hosted defaults
+
+`SCYNC_USE_EMULATORS=true` switches to the local Firebase emulators; it is
+never on by default. Google sign-in uses a bundled public desktop client id
+with PKCE, so no client secret is required. If Google sign-in is unavailable
+for your project, use `scync login --email you@example.com`.
 
 ---
 

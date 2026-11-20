@@ -7,6 +7,15 @@
   "bin": {
     "scync": "bin/scync.js"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "USER_GUIDE.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli/index.ts",
@@ -14,16 +23,34 @@
     "test:emulator": "firebase emulators:exec --project demo-scync \"npx vitest run --config vitest.emulator.config.ts\"",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "secrets",
+    "secrets-manager",
     "zero-knowledge",
     "cli",
+    "tui",
+    "terminal",
+    "encryption",
+    "aes-256-gcm",
+    "developer-tools",
     "security"
   ],
-  "author": "",
+  "author": "Hariharen",
   "license": "MIT",
+  "homepage": "https://scync.space",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hariharen9/Scync-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hariharen9/Scync-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",

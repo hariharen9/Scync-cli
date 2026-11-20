@@ -6,6 +6,7 @@ import { CliError, ConflictError, ExitCode } from '../cli/errors.js';
 import { inferServiceFromName } from '../cli/input.js';
 import { ENVIRONMENTS, SECRET_TYPES, STATUSES } from '../core/constants.js';
 import { normalizeEnvironment } from '../core/constants.js';
+import { getGoogleClientConfig } from '../core/firebase.js';
 import { generateTOTPCode, getRemainingSeconds } from '../core/totp.js';
 import type {
   Project,
@@ -590,6 +591,8 @@ export class TuiApp {
       // Do not block navigation with a modal. Metadata is usable while locked;
       // decrypt actions prompt for the master password on demand.
       this.toast('Vault locked · press U to unlock · metadata browsing is available', 'info');
+    } else if (!this.state.data.meta) {
+      this.toast('No vault yet · create one at https://scync.space/app, then press U', 'warning');
     }
   }
 
@@ -794,7 +797,7 @@ export class TuiApp {
 
   private openUnlockModal(subtitle?: string): void {
     if (!this.state.data.meta) {
-      this.toast('Vault is not initialized. Create it on the Scync web app first.', 'warning');
+      this.toast('No vault yet. Create one at https://scync.space/app, then press U.', 'warning');
       return;
     }
 
@@ -2234,8 +2237,7 @@ export class TuiApp {
   }
 
   async startGoogleLogin(): Promise<void> {
-    const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
-    const clientSecret = process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
+    const { clientId, clientSecret } = getGoogleClientConfig();
     if (!clientId) {
       this.state.login.error =
         'Google sign-in needs SCYNC_GOOGLE_CLIENT_ID in ~/.scync/.env. Use email/password instead.';

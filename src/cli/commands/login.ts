@@ -1,5 +1,5 @@
 import { signInWithEmailAndPassword, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
-import { getAuthInstance, DEFAULT_CONFIG } from '../../core/firebase.js';
+import { getAuthInstance, getGoogleClientConfig } from '../../core/firebase.js';
 import { createSessionFromUser } from '../../auth/session.js';
 import { loginWithGoogleLoopback } from '../../auth/loopback.js';
 import { promptPassword, promptText } from '../prompts.js';
@@ -46,14 +46,11 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     }
   } else {
     // Google OAuth Flow
-    const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
-    const clientSecret = process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
+    const { clientId, clientSecret } = getGoogleClientConfig();
     if (!clientId) {
-      console.log(pc.yellow('Notice: Google OAuth Client ID is not configured.'));
-      console.log('For Google browser sign-in, add your OAuth 2.0 Client ID (from Google Cloud Console > Credentials) to .env.local:');
-      console.log(pc.dim('  SCYNC_GOOGLE_CLIENT_ID=xxxxxx.apps.googleusercontent.com\n'));
-      console.log('Alternatively, sign in with Email & Password:');
-      console.log(pc.cyan('  node bin/scync.js login --email <your-email>\n'));
+      console.log(pc.yellow('Notice: Google OAuth is not configured for this build.'));
+      console.log('Sign in with Email & Password instead:');
+      console.log(pc.cyan('  scync login --email <your-email>\n'));
       
       const email = await promptText('Enter your email to sign in: ');
       if (!email) return;
@@ -88,7 +85,14 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
         footer: pc.dim('Zero-Knowledge Secrets Platform • Scync CLI')
       });
     } catch (err: any) {
-      throw new CliError(`Google sign-in failed: ${err.message}`, ExitCode.AUTH_REQUIRED);
+      const detail = String(err?.message ?? err);
+      if (/invalid_client|client_secret|redirect_uri_mismatch/i.test(detail)) {
+        throw new CliError(
+          `Google sign-in is unavailable (${detail}). Use email/password instead: scync login --email <you@example.com>`,
+          ExitCode.AUTH_REQUIRED
+        );
+      }
+      throw new CliError(`Google sign-in failed: ${detail}`, ExitCode.AUTH_REQUIRED);
     }
   }
 }
