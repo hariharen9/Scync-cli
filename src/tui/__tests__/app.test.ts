@@ -113,20 +113,33 @@ describe('TUI key routing and interaction', () => {
     expect(app.state.modal).toBeNull();
   });
 
-  it('drives inline search', () => {
+  it('opens global search from the dashboard and jumps to a result', () => {
     const app = makeApp();
-    key(app, char('2'));
+    expect(app.state.view).toBe('dashboard');
+
     key(app, char('/'));
-    expect(app.state.secrets.searching).toBe(true);
-    key(app, char('S'));
-    key(app, char('T'));
-    expect(app.state.secrets.query).toBe('ST');
+    expect(app.state.search).not.toBeNull();
+
+    key(app, char('s'));
+    key(app, char('t'));
+    key(app, char('r'));
+    expect(app.state.search?.query).toBe('str');
+
     key(app, special('enter'));
-    expect(app.state.secrets.searching).toBe(false);
-    expect(app.state.secrets.query).toBe('ST');
+    expect(app.state.search).toBeNull();
+    expect(app.state.view).toBe('secrets');
+    expect(app.state.secrets.detail).toBe(true);
+    expect(app.state.data.secrets[app.state.secrets.selected].name).toBe('STRIPE_KEY');
+  });
+
+  it('escape closes global search without navigating', () => {
+    const app = makeApp();
+    key(app, char('/'));
+    key(app, char('x'));
     key(app, special('escape'));
-    // A second Escape clears the finished search query.
-    expect(app.state.secrets.query).toBe('');
+
+    expect(app.state.search).toBeNull();
+    expect(app.state.view).toBe('dashboard');
   });
 
   it('navigates lists with arrow keys and backs out with Escape', () => {

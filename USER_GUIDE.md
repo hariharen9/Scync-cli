@@ -381,6 +381,7 @@ scync config                                  # show current config
 scync config set default.project myapp        # default project filter
 scync config set default.env Development      # default environment filter
 scync config set agent.timeout 30m            # how long the agent stays unlocked
+scync config set auth.maxAge 30d              # how long a stored login stays valid
 scync config set clipboard.timeout 30s        # 0 disables clipboard auto-clear
 scync config set output.format json           # table | json | plain
 scync config get default.project
@@ -390,6 +391,20 @@ scync config unset default.project
 With `default.project` and `default.env` set, bulk commands (`ls`, `pull`,
 `push`, `run`, `watch`) are automatically scoped — explicit flags still win
 when given.
+
+### Session lifetimes
+
+Two independent timers:
+
+| What | Default | How it ends |
+|---|---|---|
+| **Login** (`scync login`) | 30 days | Re-run `scync login` after the max age, or if Firebase revokes the refresh token |
+| **Unlock** (`scync unlock`) | 15 min idle, 8 h maximum | `scync lock`, idle timeout, or the 8-hour cap |
+
+The 1-hour Firebase ID token refreshes automatically and never extends the
+30-day login lifetime. Raise or lower it with `auth.maxAge` (`7d`, `12h`), or
+disable the cap entirely with `auth.maxAge off` — not recommended on shared
+machines. `scync whoami` shows both timers.
 
 ---
 

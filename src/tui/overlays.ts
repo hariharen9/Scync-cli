@@ -84,6 +84,7 @@ function renderHelp(buf: Buffer, theme: Theme, width: number, height: number): O
     {
       title: 'Global',
       lines: [
+        ['/', 'Search everything in the vault'],
         ['1 … 9', 'Jump to a view'],
         ['[ / ]', 'Previous / next view'],
         ['r', 'Refresh vault data'],

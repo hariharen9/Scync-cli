@@ -36,7 +36,10 @@ export function fromVaultFilter(filter: VaultFilter): SecretFilter {
   };
 }
 
-export function filterSecrets(secrets: StoredSecret[], filter: SecretFilter): StoredSecret[] {
+export function filterSecrets(
+  secrets: StoredSecret[],
+  filter: SecretFilter
+): StoredSecret[] {
   const search = filter.search.trim().toLowerCase();
 
   return secrets.filter((secret) => {

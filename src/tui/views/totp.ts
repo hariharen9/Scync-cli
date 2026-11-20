@@ -4,16 +4,12 @@ import type { Key } from '../keys.js';
 import { isChar, isSpecial } from '../keys.js';
 import type { StoredTOTP } from '../../core/types.js';
 import { getRemainingSeconds } from '../../core/totp.js';
-import { matchesText, sortByName } from '../format.js';
 import { clamp, displayWidth, truncate } from '../width.js';
 import { drawListRow, drawPanel, drawProgressBar } from '../widgets.js';
 
 function visibleTokens(app: TuiApp): StoredTOTP[] {
-  const list = app.state.lists.totp;
   return app.state.data.totp
-    .filter((token) =>
-      matchesText(list.query, token.issuer, token.label, token.algorithm, String(token.digits))
-    )
+    .slice()
     .sort((a, b) =>
       `${a.issuer} ${a.label}`.localeCompare(`${b.issuer} ${b.label}`, undefined, {
         sensitivity: 'base',
@@ -34,9 +30,7 @@ export function renderTotpView(app: TuiApp, buf: Buffer, rect: Rect): void {
 
   buf.fill(rect.x, rect.y, rect.w, 1, { bg: p.panelAlt });
   buf.put(rect.x + 1, rect.y, g.search, { fg: p.accent });
-  buf.put(rect.x + 3, rect.y, list.query || 'Search tokens…', {
-    fg: list.query ? p.text : p.faint,
-  }, Math.max(10, rect.w - 24));
+  buf.put(rect.x + 3, rect.y, 'Press / to search the whole vault', { fg: p.faint }, Math.max(10, rect.w - 24));
   const countLabel = `${tokens.length} token(s)`;
   buf.put(rect.x + rect.w - displayWidth(countLabel) - 2, rect.y, countLabel, { fg: p.faint });
 
@@ -66,7 +60,7 @@ export function renderTotpView(app: TuiApp, buf: Buffer, rect: Rect): void {
   list.scroll = start;
 
   if (tokens.length === 0) {
-    buf.put(x, top + 1, list.query ? 'No tokens match your search.' : 'No TOTP tokens in your vault.', {
+    buf.put(x, top + 1, 'No TOTP tokens in your vault.', {
       fg: p.faint,
     });
   } else {
@@ -157,24 +151,6 @@ export function handleTotpKey(app: TuiApp, key: Key): void {
   const tokens = visibleTokens(app);
   const selected = tokens[list.selected];
 
-  if (list.searching) {
-    if (isSpecial(key, 'enter') || isSpecial(key, 'escape')) {
-      list.searching = false;
-      return;
-    }
-    if (isSpecial(key, 'backspace')) {
-      list.query = [...list.query].slice(0, -1).join('');
-      list.selected = 0;
-      return;
-    }
-    if (key.type === 'char' && key.text && !key.ctrl && !key.alt) {
-      list.query += key.text;
-      list.selected = 0;
-    }
-    return;
-  }
-
-  if (isChar(key, '/')) return void (list.searching = true);
   if (isSpecial(key, 'up') || isChar(key, 'k')) {
     list.selected = Math.max(0, list.selected - 1);
     return;
@@ -189,10 +165,7 @@ export function handleTotpKey(app: TuiApp, key: Key): void {
   }
   if (isSpecial(key, 'escape')) {
     if (list.detail) list.detail = false;
-    else if (list.query) {
-      list.query = '';
-      list.selected = 0;
-    } else app.goBack();
+    else app.goBack();
     return;
   }
   if (!selected) return;

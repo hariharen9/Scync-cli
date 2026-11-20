@@ -114,10 +114,7 @@ function renderFilterBar(app: TuiApp, buf: Buffer, rect: Rect): void {
   buf.fill(rect.x, rect.y, rect.w, rect.h, { bg: p.bg });
   buf.fill(rect.x, rect.y, rect.w, 1, { bg: p.panelAlt });
   buf.put(rect.x + 1, rect.y, g.search, { fg: p.accent });
-  const query = state.secrets.query;
-  buf.put(rect.x + 3, rect.y, query || 'Search secrets…', {
-    fg: query ? p.text : p.faint,
-  }, Math.max(10, rect.w - 30));
+  buf.put(rect.x + 3, rect.y, 'Press / to search the whole vault', { fg: p.faint }, Math.max(10, rect.w - 30));
   const right = `sort ${state.secrets.sort} ${state.secrets.sortDirection === 'asc' ? '↑' : '↓'}`;
   buf.put(Math.max(rect.x + 4, rect.x + rect.w - displayWidth(right) - 2), rect.y, right, { fg: p.faint });
 
@@ -158,10 +155,9 @@ function renderSecretsList(app: TuiApp, buf: Buffer, rect: Rect, items: StoredSe
   const { theme, state, now } = app;
   const { p, g } = theme;
   const focused = state.secrets.focus === 'list';
-  const footer =
-    items.length > Math.max(1, rect.h - 4)
-      ? `${state.secrets.selected + 1}/${items.length} · ↑↓ move · PgUp/PgDn`
-      : `${items.length} secret(s)`;
+  const footer = items.length > Math.max(1, rect.h - 4)
+    ? `${state.secrets.selected + 1}/${items.length} · ↑↓ move · PgUp/PgDn`
+    : `${items.length} secret(s)`;
   drawPanel(buf, theme, rect, 'SECRETS', { focused, footer });
 
   const innerX = rect.x + 2;
@@ -386,40 +382,8 @@ export function renderSecretDetail(app: TuiApp, buf: Buffer, rect: Rect, secret:
 
 export function handleSecretsKey(app: TuiApp, key: Key): void {
   const state = app.state.secrets;
-
-  if (state.searching) {
-    if (isSpecial(key, 'enter') || isSpecial(key, 'escape')) {
-      state.searching = false;
-      app.requestRender();
-      return;
-    }
-    if (isSpecial(key, 'backspace')) {
-      const chars = [...state.query];
-      chars.pop();
-      state.query = chars.join('');
-      app.requestRender();
-      return;
-    }
-    if (key.type === 'char' && key.text && !key.ctrl && !key.alt) {
-      state.query += key.text;
-      state.selected = 0;
-      app.requestRender();
-      return;
-    }
-    if (key.ctrl && key.text === 'u') {
-      state.query = '';
-      app.requestRender();
-    }
-    return;
-  }
-
   const items = visibleSecrets(app);
   const selected = items[state.selected];
-
-  if (isChar(key, '/')) {
-    state.searching = true;
-    return;
-  }
   if (isChar(key, 'n')) return app.newSecret();
   if (isChar(key, 'f')) return app.openFilterPicker();
   if (isChar(key, 'x')) {
@@ -501,7 +465,7 @@ export function handleSecretsKey(app: TuiApp, key: Key): void {
   if (isSpecial(key, 'escape')) {
     if (state.detail) state.detail = false;
     else if (state.focus === 'detail') state.focus = 'list';
-    else if (hasFilters(state.filter) || state.query.trim()) app.clearSecretFilters();
+    else if (hasFilters(state.filter)) app.clearSecretFilters();
     else app.goBack();
     return;
   }

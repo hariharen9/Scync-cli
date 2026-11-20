@@ -10,6 +10,8 @@ import {
   unsetConfigValue,
   getClipboardTimeoutSecs,
   getDefaultScope,
+  getAuthMaxAgeMs,
+  parseAuthMaxAge,
 } from '../index.js';
 
 describe('CLI Configuration Layer', () => {
@@ -72,5 +74,23 @@ describe('CLI Configuration Layer', () => {
     setConfigValue('default.env', 'Production');
     expect(getDefaultScope()).toEqual({ project: 'proj-omega', env: 'Production' });
     expect(loadConfig()).toMatchObject({ 'default.project': 'proj-omega', 'default.env': 'Production' });
+  });
+
+  it('defaults the auth max age to 30 days and honours overrides', () => {
+    const day = 24 * 60 * 60 * 1000;
+    expect(parseAuthMaxAge(undefined)).toBe(30 * day);
+    expect(parseAuthMaxAge('')).toBe(30 * day);
+    expect(parseAuthMaxAge('7d')).toBe(7 * day);
+    expect(parseAuthMaxAge('12h')).toBe(12 * 60 * 60 * 1000);
+    expect(parseAuthMaxAge('14')).toBe(14 * day);
+    expect(parseAuthMaxAge('0')).toBe(0);
+    expect(parseAuthMaxAge('off')).toBe(0);
+    expect(parseAuthMaxAge('never')).toBe(0);
+
+    expect(getAuthMaxAgeMs()).toBe(30 * day);
+    setConfigValue('auth.maxAge', '7d');
+    expect(getAuthMaxAgeMs()).toBe(7 * day);
+    setConfigValue('auth.maxAge', 'off');
+    expect(getAuthMaxAgeMs()).toBe(0);
   });
 });

@@ -11,6 +11,8 @@ export interface StoredSession {
   expiresAt: number;
   providerId: 'google.com' | 'password';
   savedAt: string;
+  /** Epoch ms after which the stored login must be renewed with `scync login`. */
+  authValidUntil?: number;
 }
 
 export interface UserConfig {

@@ -7,6 +7,7 @@ export interface ScyncConfig {
   'default.env'?: string;
   'agent.timeout'?: string; // e.g. '15m', '30m', '1h'
   'clipboard.timeout'?: string; // e.g. '30s'
+  'auth.maxAge'?: string; // e.g. '30d', '7d'; '0' disables the cap
   'output.format'?: 'table' | 'json' | 'plain';
   [key: string]: any;
 }
@@ -86,6 +87,23 @@ export function getClipboardTimeoutSecs(): number {
   if (/^\d+$/.test(String(raw).trim())) return parseInt(String(raw).trim(), 10);
   const ms = parseDurationMs(String(raw), 30_000);
   return Math.max(0, Math.round(ms / 1000));
+}
+
+/**
+ * Maximum age of a stored login before `scync login` is required again.
+ * Defaults to 30 days. `0` (or `off`) disables the cap.
+ */
+export function getAuthMaxAgeMs(): number {
+  return parseAuthMaxAge(loadConfig()['auth.maxAge']);
+}
+
+export function parseAuthMaxAge(raw: unknown): number {
+  const defaultMs = 30 * 24 * 60 * 60 * 1000;
+  if (raw === undefined || raw === null || raw === '') return defaultMs;
+  const value = String(raw).trim().toLowerCase();
+  if (value === '0' || value === 'off' || value === 'never' || value === 'none') return 0;
+  if (/^\d+$/.test(value)) return parseInt(value, 10) * 24 * 60 * 60 * 1000;
+  return parseDurationMs(value, defaultMs);
 }
 
 /**

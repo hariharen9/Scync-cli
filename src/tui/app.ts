@@ -55,12 +55,14 @@ import {
   formatDateTime,
   projectColorHex,
   projectName,
+  sortByName,
   sortSecrets,
   type SecretFilter,
   type SecretSortKey,
 } from './format.js';
 import { isChar, isSpecial, type Key } from './keys.js';
 import { renderModal } from './overlays.js';
+import { searchWorkspace, type SearchResult } from './search.js';
 import {
   initialState,
   VIEW_ORDER,
@@ -84,6 +86,7 @@ import { handleLoginKey, renderLogin } from './views/login.js';
 import { handlePasswordsKey, renderPasswordsView } from './views/passwords.js';
 import { handleProjectsKey, renderProjectsView } from './views/projects.js';
 import { handleSecretsKey, renderSecretsView } from './views/secrets.js';
+import { handleSearchKey, renderSearchOverlay } from './views/search.js';
 import { handleSettingsKey, renderSettingsView } from './views/settings.js';
 import { handleSshKey, renderSshView } from './views/ssh.js';
 import { handleToolsKey, renderToolsView } from './views/tools.js';
@@ -271,7 +274,10 @@ export class TuiApp {
       cursor = result.cursor;
     } else {
       this.drawMain(buf);
-      if (this.state.modal) {
+      if (this.state.search) {
+        const result = renderSearchOverlay(this, buf, width, height);
+        cursor = result.cursor;
+      } else if (this.state.modal) {
         const result = renderModal(buf, this.theme, this.state.modal, width, height);
         cursor = result.cursor;
       }
@@ -366,36 +372,38 @@ export class TuiApp {
 
     if (this.state.busy) return;
 
+    if (this.state.search) {
+      handleSearchKey(this, key);
+      return;
+    }
+
     if (this.state.modal) {
       this.handleModalKey(key).catch((err) => this.toast(messageOf(err), 'error'));
       this.requestRender();
       return;
     }
 
-    const typing = this.isTextInputActive();
-
-    // Global keys (never while a list search input is active).
-    if (!typing) {
-      if (isChar(key, '?')) {
-        this.openHelp();
-        return;
-      }
-      if (key.type === 'char' && key.text && /^[1-9]$/.test(key.text) && !key.ctrl && !key.alt) {
-        const index = Number(key.text) - 1;
-        if (VIEW_ORDER[index]) this.setView(VIEW_ORDER[index]);
-        return;
-      }
-      if (isChar(key, '[')) return this.cycleView(-1);
-      if (isChar(key, ']')) return this.cycleView(1);
-      if (isSpecial(key, 'left')) return this.cycleView(-1);
-      if (isSpecial(key, 'right')) return this.cycleView(1);
-      if (isChar(key, 'U')) return this.unlockVault();
-      if (isChar(key, 'L')) return void this.lockVault();
-      if (key.ctrl && key.text === 'r') return void this.refresh();
-      if (isChar(key, 'q')) {
-        this.shutdown();
-        return;
-      }
+    // Global keys.
+    if (isChar(key, '/')) return this.openSearch();
+    if (isChar(key, '?')) {
+      this.openHelp();
+      return;
+    }
+    if (key.type === 'char' && key.text && /^[1-9]$/.test(key.text) && !key.ctrl && !key.alt) {
+      const index = Number(key.text) - 1;
+      if (VIEW_ORDER[index]) this.setView(VIEW_ORDER[index]);
+      return;
+    }
+    if (isChar(key, '[')) return this.cycleView(-1);
+    if (isChar(key, ']')) return this.cycleView(1);
+    if (isSpecial(key, 'left')) return this.cycleView(-1);
+    if (isSpecial(key, 'right')) return this.cycleView(1);
+    if (isChar(key, 'U')) return this.unlockVault();
+    if (isChar(key, 'L')) return void this.lockVault();
+    if (key.ctrl && key.text === 'r') return void this.refresh();
+    if (isChar(key, 'q')) {
+      this.shutdown();
+      return;
     }
 
     switch (this.state.view) {
@@ -467,9 +475,75 @@ export class TuiApp {
     this.requestRender();
   }
 
-  private isTextInputActive(): boolean {
-    if (this.state.secrets.searching) return true;
-    return Object.values(this.state.lists).some((list) => list.searching);
+  // ─── Search ───
+
+  openSearch(seed = ''): void {
+    if (!this.session) return;
+    this.state.modal = null;
+    this.state.search = { query: seed, selected: 0, scroll: 0 };
+    this.requestRender();
+  }
+
+  closeSearch(): void {
+    this.state.search = null;
+    this.requestRender();
+  }
+
+  searchResults(): SearchResult[] {
+    return searchWorkspace(this.state.data, this.state.search?.query ?? '');
+  }
+
+  openSearchResult(result: SearchResult): void {
+    this.state.search = null;
+    const data = this.state.data;
+
+    switch (result.kind) {
+      case 'secret': {
+        const secret = data.secrets.find((entry) => entry.id === result.id);
+        if (secret) this.openSecret(secret);
+        return;
+      }
+      case 'project': {
+        const project = data.projects.find((entry) => entry.id === result.id);
+        if (project) this.openProject(project);
+        return;
+      }
+      case 'password':
+        this.state.lists.passwords.selected = Math.max(
+          0,
+          sortByName(data.passwords).findIndex((entry) => entry.id === result.id)
+        );
+        this.setView('passwords');
+        return;
+      case 'totp':
+        this.state.lists.totp.selected = Math.max(
+          0,
+          data.totp
+            .slice()
+            .sort((a, b) =>
+              `${a.issuer} ${a.label}`.localeCompare(`${b.issuer} ${b.label}`, undefined, {
+                sensitivity: 'base',
+              })
+            )
+            .findIndex((entry) => entry.id === result.id)
+        );
+        this.setView('totp');
+        return;
+      case 'ssh':
+        this.state.lists.ssh.selected = Math.max(
+          0,
+          sortByName(data.ssh).findIndex((entry) => entry.id === result.id)
+        );
+        this.setView('ssh');
+        return;
+      case 'cert':
+        this.state.lists.certs.selected = Math.max(
+          0,
+          sortByName(data.certs).findIndex((entry) => entry.id === result.id)
+        );
+        this.setView('certs');
+        return;
+    }
   }
 
   // ─── Bootstrap, refresh, agent ───
@@ -792,6 +866,7 @@ export class TuiApp {
       this.state.unlocked = false;
       this.state.agent = { status: 'locked', ttlRemainingMs: 0, sampledAt: Date.now() };
       this.agentTtlUntil = 0;
+      this.state.search = null;
       this.secretPlaintext.clear();
       this.passwordPlaintext.clear();
       this.totpSecrets.clear();
@@ -1235,8 +1310,6 @@ export class TuiApp {
   openSecret(secret: StoredSecret): void {
     this.setView('secrets');
     this.state.secrets.filter = { ...EMPTY_SECRET_FILTER };
-    this.state.secrets.query = '';
-    this.state.secrets.searching = false;
     const visible = sortSecrets(
       this.state.data.secrets,
       this.state.secrets.sort,
@@ -1340,7 +1413,6 @@ export class TuiApp {
 
   clearSecretFilters(): void {
     this.state.secrets.filter = { ...EMPTY_SECRET_FILTER };
-    this.state.secrets.query = '';
     this.state.secrets.selected = 0;
     this.state.secrets.detailScroll = 0;
     this.toast('Filters cleared', 'info');
@@ -1363,8 +1435,6 @@ export class TuiApp {
 
   openProject(project: Project): void {
     this.state.secrets.filter.projectId = project.id;
-    this.state.secrets.query = '';
-    this.state.secrets.searching = false;
     this.state.secrets.selected = 0;
     this.state.secrets.detail = false;
     this.setView('secrets');
@@ -2094,6 +2164,7 @@ export class TuiApp {
       'default.project',
       'default.env',
       'agent.timeout',
+      'auth.maxAge',
       'clipboard.timeout',
       'output.format',
     ];
@@ -2493,6 +2564,7 @@ export class TuiApp {
       ];
     }
     const common = [
+      { key: '/', label: 'search' },
       { key: this.state.unlocked ? 'L' : 'U', label: this.state.unlocked ? 'lock' : 'unlock' },
       { key: '←→', label: 'views' },
       { key: '1-9', label: 'jump' },
@@ -2506,34 +2578,26 @@ export class TuiApp {
         { key: 'U', label: 'unlock' },
         { key: 't', label: 'tools' },
       ],
-      secrets: this.state.secrets.searching
-        ? [
-            { key: 'Enter', label: 'finish search' },
-            { key: 'Esc', label: 'finish' },
-          ]
-        : [
-            { key: '↑↓', label: 'move' },
-            { key: 'Enter', label: 'detail' },
-            { key: 'r', label: 'reveal' },
-            { key: 'c', label: 'copy' },
-            { key: 'e', label: 'edit' },
-            { key: 'n', label: 'new' },
-            { key: '/', label: 'search' },
-            { key: 'f', label: 'filters' },
-          ],
+      secrets: [
+        { key: '↑↓', label: 'move' },
+        { key: 'Enter', label: 'detail' },
+        { key: 'r', label: 'reveal' },
+        { key: 'c', label: 'copy' },
+        { key: 'e', label: 'edit' },
+        { key: 'n', label: 'new' },
+        { key: 'f', label: 'filters' },
+      ],
       projects: [
         { key: 'Enter', label: 'filter' },
         { key: 'n', label: 'new' },
         { key: 'e', label: 'edit' },
         { key: 'd', label: 'delete' },
-        { key: '/', label: 'search' },
       ],
       passwords: [
         { key: 'r', label: 'reveal' },
         { key: 'c', label: 'password' },
         { key: 'u', label: 'username' },
         { key: 'l', label: 'URL' },
-        { key: '/', label: 'search' },
       ],
       totp: [
         { key: 'c', label: 'copy code' },

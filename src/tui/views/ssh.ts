@@ -3,17 +3,12 @@ import type { TuiApp } from '../app.js';
 import type { Key } from '../keys.js';
 import { isChar, isSpecial } from '../keys.js';
 import type { StoredSSHKey } from '../../core/types.js';
-import { formatRelative, matchesText, sortByName } from '../format.js';
+import { formatRelative, sortByName } from '../format.js';
 import { clamp, displayWidth, truncate, wrapText } from '../width.js';
 import { drawListRow, drawPanel } from '../widgets.js';
 
 function visibleKeys(app: TuiApp): StoredSSHKey[] {
-  const list = app.state.lists.ssh;
-  return sortByName(
-    app.state.data.ssh.filter((key) =>
-      matchesText(list.query, key.name, key.type, key.fingerprint, key.hosts.join(' '))
-    )
-  );
+  return sortByName(app.state.data.ssh);
 }
 
 export function renderSshView(app: TuiApp, buf: Buffer, rect: Rect): void {
@@ -29,9 +24,7 @@ export function renderSshView(app: TuiApp, buf: Buffer, rect: Rect): void {
 
   buf.fill(rect.x, rect.y, rect.w, 1, { bg: p.panelAlt });
   buf.put(rect.x + 1, rect.y, g.search, { fg: p.accent });
-  buf.put(rect.x + 3, rect.y, list.query || 'Search SSH keys…', {
-    fg: list.query ? p.text : p.faint,
-  }, Math.max(10, rect.w - 24));
+  buf.put(rect.x + 3, rect.y, 'Press / to search the whole vault', { fg: p.faint }, Math.max(10, rect.w - 24));
   const countLabel = `${keys.length} key(s)`;
   buf.put(rect.x + rect.w - displayWidth(countLabel) - 2, rect.y, countLabel, { fg: p.faint });
 
@@ -64,7 +57,7 @@ export function renderSshView(app: TuiApp, buf: Buffer, rect: Rect): void {
   list.scroll = start;
 
   if (keys.length === 0) {
-    buf.put(x, top + 1, list.query ? 'No keys match your search.' : 'No SSH keys in your vault.', { fg: p.faint });
+    buf.put(x, top + 1, 'No SSH keys in your vault.', { fg: p.faint });
   } else {
     for (let i = 0; i < viewport; i++) {
       const key = keys[start + i];
@@ -139,24 +132,6 @@ export function handleSshKey(app: TuiApp, key: Key): void {
   const keys = visibleKeys(app);
   const selected = keys[list.selected];
 
-  if (list.searching) {
-    if (isSpecial(key, 'enter') || isSpecial(key, 'escape')) {
-      list.searching = false;
-      return;
-    }
-    if (isSpecial(key, 'backspace')) {
-      list.query = [...list.query].slice(0, -1).join('');
-      list.selected = 0;
-      return;
-    }
-    if (key.type === 'char' && key.text && !key.ctrl && !key.alt) {
-      list.query += key.text;
-      list.selected = 0;
-    }
-    return;
-  }
-
-  if (isChar(key, '/')) return void (list.searching = true);
   if (isSpecial(key, 'up') || isChar(key, 'k')) {
     list.selected = Math.max(0, list.selected - 1);
     return;
@@ -171,10 +146,7 @@ export function handleSshKey(app: TuiApp, key: Key): void {
   }
   if (isSpecial(key, 'escape')) {
     if (list.detail) list.detail = false;
-    else if (list.query) {
-      list.query = '';
-      list.selected = 0;
-    } else app.goBack();
+    else app.goBack();
     return;
   }
   if (!selected) return;

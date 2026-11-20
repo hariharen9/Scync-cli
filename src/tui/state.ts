@@ -59,8 +59,6 @@ export type SecretDraft = {
 export type LockedSecretDraft = SecretDraft;
 
 export interface ListState {
-  query: string;
-  searching: boolean;
   detail: boolean;
   selected: number;
   scroll: number;
@@ -72,6 +70,12 @@ export interface SecretsState extends ListState {
   sortDirection: 'asc' | 'desc';
   focus: 'list' | 'detail';
   detailScroll: number;
+}
+
+export interface SearchState {
+  query: string;
+  selected: number;
+  scroll: number;
 }
 
 export interface Toast {
@@ -89,6 +93,7 @@ export interface AppState {
   lists: Record<'passwords' | 'projects' | 'totp' | 'ssh' | 'certs', ListState>;
   revealedUntil: Record<string, number>;
   modal: ModalState | null;
+  search: SearchState | null;
   toast: Toast | null;
   busy: string | null;
   errors: string[];
@@ -199,7 +204,7 @@ export interface ViewerModal {
 }
 
 export function emptyList(): ListState {
-  return { query: '', searching: false, detail: false, selected: 0, scroll: 0 };
+  return { detail: false, selected: 0, scroll: 0 };
 }
 
 export function initialState(data: WorkspaceData): AppState {
@@ -209,8 +214,6 @@ export function initialState(data: WorkspaceData): AppState {
     data,
     meta: data.meta,
     secrets: {
-      query: '',
-      searching: false,
       detail: false,
       selected: 0,
       scroll: 0,
@@ -236,6 +239,7 @@ export function initialState(data: WorkspaceData): AppState {
     },
     revealedUntil: {},
     modal: null,
+    search: null,
     toast: null,
     busy: null,
     errors: [],
