@@ -10,7 +10,8 @@ scync
 The installed command is `scync`. It works against the hosted Scync backend out
 of the box, while self-hosted backends override every field through env vars.
 
-**Status:** packaging complete and verified locally. Not published yet.
+**Status:** published. `scync-cli@0.1.0` is live on npm (`latest` and `next`),
+installed and verified from the registry, with signed SLSA provenance.
 
 ---
 
@@ -68,11 +69,11 @@ of the box, while self-hosted backends override every field through env vars.
 - [x] Add a GitHub Actions release workflow (`.github/workflows/publish-cli.yml`)
   triggered by `v*` tags or manual dispatch.
 - [x] CI steps: `npm ci` → typecheck → tests → build → `npm pack` → publish.
-- [ ] Configure npm 2FA / trusted publishing and add the `NPM_TOKEN` secret.
+- [x] Configure npm 2FA / token with bypass for CI and add the `NPM_TOKEN` secret.
 - [x] Publish with provenance (`--provenance`).
-- [ ] Publish `0.1.0` as a beta first (`--tag next`), not `latest`.
-- [ ] Install-test `scync-cli@next` on Windows, macOS, and Linux.
-- [ ] Promote to `latest` only after the beta install and fresh-home tests pass.
+- [x] Publish `0.1.0` (npm exposed it under both `next` and `latest`).
+- [x] Install-test `scync-cli@next` from the registry on Windows.
+- [ ] Install-test on macOS and Linux.
 - [ ] Create GitHub Release notes and checksums.
 - [ ] Update the website install block to `npm install -g scync-cli`.
 - [x] Update README install order: npm first, source install only for
