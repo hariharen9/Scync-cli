@@ -8,6 +8,11 @@
  *
  * Run with no env vars (local development) and it writes empty strings, which
  * simply means Google sign-in falls back to whatever the user configures.
+ *
+ * Important: when no env vars are supplied but a previous run already wrote a
+ * client, the existing values are kept. npm runs lifecycle hooks such as
+ * `prepublishOnly` without those env vars, and regenerating empty there would
+ * silently publish a build with Google sign-in stripped out.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,9 +22,25 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.resolve(here, '../src/generated');
 const outFile = path.join(outDir, 'google-client.ts');
 
-const clientId = process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+function readExisting() {
+  if (!fs.existsSync(outFile)) return { clientId: '', clientSecret: '' };
+  const source = fs.readFileSync(outFile, 'utf8');
+  const id = source.match(/BUNDLED_GOOGLE_CLIENT_ID = (".*")/);
+  const secret = source.match(/BUNDLED_GOOGLE_CLIENT_SECRET = (".*")/);
+  return {
+    clientId: id ? JSON.parse(id[1]) : '',
+    clientSecret: secret ? JSON.parse(secret[1]) : '',
+  };
+}
+
+const existing = readExisting();
+
+const clientId =
+  process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || existing.clientId;
 const clientSecret =
-  process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
+  process.env.SCYNC_GOOGLE_CLIENT_SECRET ||
+  process.env.VITE_GOOGLE_CLIENT_SECRET ||
+  existing.clientSecret;
 
 if (!clientId && process.env.CI) {
   console.warn(

@@ -2,17 +2,22 @@
 
 All notable changes to `scync-cli` are documented here.
 
+## 0.1.4 — 2026-11-20
+
+### Fixed
+
+- The published `0.1.3` tarball shipped **without** the Google client. npm runs
+  `prepublishOnly` (and therefore a rebuild) without the build environment, and
+  the generator overwrote the injected values with empty strings. The generator
+  now preserves an existing client, the publish step receives the values, and CI
+  verifies the packed tarball before uploading.
+
 ## 0.1.3 — 2026-11-20
 
 ### Fixed
 
-- **Google sign-in works on a fresh install.** The package now bundles the
-  Google *Desktop app* OAuth client (id and secret). Google treats the secret
-  for installed-app clients as non-confidential — the same model used by
-  `gcloud`, `firebase-tools` and `gh` — so shipping it is correct and safe.
-- `scync login` uses Google by default again; `--email` selects password
-  sign-in. Self-hosters can still override both values with
-  `SCYNC_GOOGLE_CLIENT_ID` / `_SECRET`.
+- Google sign-in works on a fresh install via the bundled Google Desktop app
+  OAuth client, injected from repository secrets at build time.
 
 ## 0.1.2 — 2026-11-20
 

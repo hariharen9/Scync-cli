@@ -41,7 +41,18 @@ jobs:
 
       - run: npm run verify:google-client
 
+      - name: Verify the packed tarball contains the Google client
+        run: |
+          npm pack --silent > /dev/null
+          tar -xzf scync-cli-*.tgz
+          grep -q "BUNDLED_GOOGLE_CLIENT" package/dist/*.js \
+            && grep -rq "GOCSPX" package/dist/ \
+            && echo "Bundled Google client present in tarball." \
+            || { echo "Tarball is missing the bundled Google client."; exit 1; }
+
       - name: Publish to npm
         run: npm publish --provenance --access public --tag "${{ github.event.inputs.tag || 'next' }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SCYNC_GOOGLE_CLIENT_ID: ${{ secrets.SCYNC_GOOGLE_CLIENT_ID }}
+          SCYNC_GOOGLE_CLIENT_SECRET: ${{ secrets.SCYNC_GOOGLE_CLIENT_SECRET }}
