@@ -41,7 +41,10 @@ import { runTui } from '../tui/index.js';
 import { runAgentDaemon } from '../agent/server.js';
 import { closeFirebase } from '../core/firebase.js';
 import { CliError, ExitCode } from './errors.js';
+import { VERSION } from '../version.js';
 import pc from 'picocolors';
+
+export { VERSION };
 
 export function createProgram(): Command {
   const program = new Command();
@@ -49,7 +52,7 @@ export function createProgram(): Command {
   program
     .name('scync')
     .description('Zero-knowledge developer secrets manager (TUI + CLI)')
-    .version('0.1.0')
+    .version(VERSION)
     .enablePositionalOptions()
     .action(async () => {
       // Do not treat an unknown command as a request to open the TUI.

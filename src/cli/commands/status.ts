@@ -4,6 +4,7 @@ import { getDb } from '../../core/firebase.js';
 import { AgentClient } from '../../agent/client.js';
 import { AuthRequiredError } from '../errors.js';
 import { renderCard, CardRow } from '../tui.js';
+import { VERSION } from '../index.js';
 import pc from 'picocolors';
 
 export interface StatusOptions {
@@ -82,6 +83,6 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     title: 'Scync Vault Status',
     badge: meta ? pc.green('● Healthy') : pc.yellow('● Action Required'),
     rows,
-    footer: pc.dim('Hardware Key & Biometric Auth • Scync v0.1.0')
+    footer: pc.dim(`Hardware Key & Biometric Auth • Scync v${VERSION}`)
   });
 }

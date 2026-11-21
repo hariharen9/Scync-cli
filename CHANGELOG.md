@@ -2,6 +2,15 @@
 
 All notable changes to `scync-cli` are documented here.
 
+## 0.1.2 — 2026-11-20
+
+### Fixed
+
+- `scync --version` and the TUI header now report the real package version.
+  They were hardcoded, so `0.1.1` still announced itself as `0.1.0`.
+- Added a unit test that fails if the reported version and `package.json`
+  drift apart.
+
 ## 0.1.1 — 2026-11-20
 
 ### Fixed

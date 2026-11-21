@@ -7,6 +7,7 @@ import { inferServiceFromName } from '../cli/input.js';
 import { ENVIRONMENTS, SECRET_TYPES, STATUSES } from '../core/constants.js';
 import { normalizeEnvironment } from '../core/constants.js';
 import { getGoogleClientConfig } from '../core/firebase.js';
+import { VERSION } from '../version.js';
 import { generateTOTPCode, getRemainingSeconds } from '../core/totp.js';
 import type {
   Project,
@@ -94,7 +95,6 @@ import { handleToolsKey, renderToolsView } from './views/tools.js';
 import { handleTotpKey, renderTotpView } from './views/totp.js';
 import { renderSplash } from './views/splash.js';
 
-const VERSION = '0.1.0';
 const REVEAL_MS = 15_000;
 
 interface PlainSecret {

@@ -2,7 +2,7 @@
 
 > Zero-knowledge developer secrets manager with a full-screen terminal UI and a scriptable CLI.
 
-[![Tests](https://img.shields.io/badge/tests-109%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-111%20passed-brightgreen.svg)]()
 [![npm](https://img.shields.io/npm/v/scync-cli.svg)](https://www.npmjs.com/package/scync-cli)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -296,7 +296,7 @@ These are project rules, not suggestions:
 
 ```bash
 npm run typecheck
-npm test               # 17 suites, 109 unit tests (incl. headless TUI render/key/edit)
+npm test               # 18 suites, 111 unit tests (incl. headless TUI render/key/edit)
 npm run test:emulator  # Firebase emulator integration
 npm run build
 ```
