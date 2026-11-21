@@ -35,6 +35,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+        env:
+          SCYNC_GOOGLE_CLIENT_ID: ${{ secrets.SCYNC_GOOGLE_CLIENT_ID }}
+          SCYNC_GOOGLE_CLIENT_SECRET: ${{ secrets.SCYNC_GOOGLE_CLIENT_SECRET }}
+
+      - run: npm run verify:google-client
 
       - name: Publish to npm
         run: npm publish --provenance --access public --tag "${{ github.event.inputs.tag || 'next' }}"

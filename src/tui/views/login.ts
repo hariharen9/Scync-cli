@@ -116,16 +116,6 @@ export function renderLogin(
   }
   y += 2;
 
-  if (!isGoogleLoginEnabled()) {
-    for (const line of wrapText(
-      'Sign in with your Scync account email and password. No Google setup required.',
-      w
-    ).slice(0, 2)) {
-      if (y >= rect.y + rect.h - 2) break;
-      buf.put(x, y++, line, { fg: p.faint }, w);
-    }
-  }
-
   for (const line of wrapText(
     'The login only proves identity. Your vault master password is separate, never stored, and cannot be recovered if forgotten.',
     w

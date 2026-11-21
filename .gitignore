@@ -6,4 +6,5 @@ dist/
 *.log
 *.tgz
 coverage/
+src/generated/
 .DS_Store

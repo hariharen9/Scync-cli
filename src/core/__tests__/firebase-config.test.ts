@@ -6,6 +6,10 @@ import {
   isGoogleLoginEnabled,
   isHostedBackend,
 } from '../firebase.js';
+import {
+  BUNDLED_GOOGLE_CLIENT_ID,
+  BUNDLED_GOOGLE_CLIENT_SECRET,
+} from '../../generated/google-client.js';
 
 const ENV_KEYS = [
   'SCYNC_FIREBASE_API_KEY',
@@ -59,9 +63,12 @@ describe('hosted backend defaults', () => {
     expect(config.apiKey).not.toContain('demo');
   });
 
-  it('does not bundle a Google client, since the hosted one needs a secret', () => {
-    expect(getGoogleClientConfig()).toEqual({ clientId: '', clientSecret: '' });
-    expect(isGoogleLoginEnabled()).toBe(false);
+  it('exposes the bundled Google client exactly as generated', () => {
+    expect(getGoogleClientConfig()).toEqual({
+      clientId: BUNDLED_GOOGLE_CLIENT_ID,
+      clientSecret: BUNDLED_GOOGLE_CLIENT_SECRET,
+    });
+    expect(isGoogleLoginEnabled()).toBe(BUNDLED_GOOGLE_CLIENT_ID.length > 0);
   });
 });
 

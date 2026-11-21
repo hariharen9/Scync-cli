@@ -79,11 +79,11 @@ See [`src/tui/README.md`](./src/tui/README.md) for architecture, data flow and e
 ## ⌨️ The CLI (secondary: scripting & automation)
 
 ```bash
-# Authenticate with your Scync account email + password
-scync login --email you@example.com
+# Authenticate with Google (browser, no setup needed)
+scync login
 
-# Optional: Google sign-in (needs your own OAuth desktop client)
-scync login --google
+# Or use your account email + password
+scync login --email you@example.com
 
 # Unlock once; the short-lived key agent serves later commands
 scync unlock
@@ -179,7 +179,7 @@ scync            # opens the terminal UI
 The CLI ships with the hosted Scync backend already configured. No `.env`, no
 project setup, no build step.
 
-1. `scync` → sign in with your Scync account email and password.
+1. `scync` → sign in with Google (or `scync login --email you@example.com`).
 2. Press `U` to unlock with your master password.
 
 New to Scync? Create your account and vault at
@@ -206,10 +206,11 @@ Precedence is: `SCYNC_*` environment variables (or `~/.scync/.env`) →
 `VITE_*` development variables → bundled hosted defaults. Emulator mode is
 opt-in only (`SCYNC_USE_EMULATORS=true`).
 
-Google sign-in is optional and off by default. It requires your own Google
-**Desktop app** OAuth client (`SCYNC_GOOGLE_CLIENT_ID`), because Google requires
-a client secret for Web application clients even with PKCE. Email/password
-sign-in always works and needs no extra configuration.
+Google sign-in works out of the box: the package bundles a Google **Desktop
+app** OAuth client, whose secret is non-confidential by Google's own model for
+installed apps (the same approach `gcloud` and `gh` use). Email/password is
+always available as a fallback. Self-hosters can supply their own client with
+`SCYNC_GOOGLE_CLIENT_ID` / `SCYNC_GOOGLE_CLIENT_SECRET`.
 
 ### From source (contributors)
 
@@ -229,7 +230,7 @@ npm link        # makes `scync` available globally
 
 | Command | Options | Description |
 |---|---|---|
-| `scync login` | `--email`, `--google`, `--no-browser`, `--port` | Email/password sign-in by default; `--google` uses your OAuth desktop client. |
+| `scync login` | `--email`, `--no-browser`, `--port` | Google sign-in by default; `--email` uses password sign-in. |
 | `scync logout` | `--yes` | Remove stored session and lock the agent. |
 | `scync whoami` | `--json` | Show active identity and token expiry. |
 | `scync status` | `--json` | Vault, biometrics, recovery kit and agent TTL. |

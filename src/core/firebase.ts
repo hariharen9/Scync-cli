@@ -2,6 +2,10 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, initializeAuth, type Auth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, type Firestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { FilePersistence } from '../auth/persistence.js';
+import {
+  BUNDLED_GOOGLE_CLIENT_ID,
+  BUNDLED_GOOGLE_CLIENT_SECRET,
+} from '../generated/google-client.js';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,13 +42,20 @@ export const HOSTED_CONFIG = {
 /**
  * Google OAuth client for the loopback (PKCE) sign-in flow.
  *
- * The hosted Scync project only has a *Web application* OAuth client, and
- * Google requires a `client_secret` for that client type even with PKCE. We do
- * not ship a secret, so Google sign-in is only available when the user (or a
- * self-hoster) supplies their own "Desktop app" client — those are true public
- * clients and work without a secret. Email/password sign-in needs nothing.
+ * This is a Google **Desktop app** client, created for the Scync CLI. Google
+ * documents that installed-app clients cannot keep a secret, so the secret is
+ * not treated as confidential — the same model used by `gcloud`,
+ * `firebase-tools` and `gh`.
+ *
+ * The values are generated at build time from repository secrets
+ * (`scripts/generate-google-client.mjs`) because GitHub push protection blocks
+ * committing them, even for installed-app clients. They are absent in a plain
+ * checkout, where Google sign-in simply stays unconfigured.
+ *
+ * Self-hosters override it with SCYNC_GOOGLE_CLIENT_ID / _SECRET.
  */
-export const HOSTED_GOOGLE_CLIENT_ID = '';
+export { BUNDLED_GOOGLE_CLIENT_ID as HOSTED_GOOGLE_CLIENT_ID } from '../generated/google-client.js';
+export { BUNDLED_GOOGLE_CLIENT_SECRET as HOSTED_GOOGLE_CLIENT_SECRET } from '../generated/google-client.js';
 
 export interface FirebaseClientConfig {
   apiKey: string;
@@ -88,8 +99,14 @@ export function getDefaultConfig(): FirebaseClientConfig {
 
 export function getGoogleClientConfig(): { clientId: string; clientSecret: string } {
   return {
-    clientId: process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
-    clientSecret: process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '',
+    clientId:
+      process.env.SCYNC_GOOGLE_CLIENT_ID ||
+      process.env.VITE_GOOGLE_CLIENT_ID ||
+      BUNDLED_GOOGLE_CLIENT_ID,
+    clientSecret:
+      process.env.SCYNC_GOOGLE_CLIENT_SECRET ||
+      process.env.VITE_GOOGLE_CLIENT_SECRET ||
+      BUNDLED_GOOGLE_CLIENT_SECRET,
   };
 }
 

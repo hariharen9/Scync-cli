@@ -72,9 +72,8 @@ export function createProgram(): Command {
   // --- Auth Commands ---
   program
     .command('login')
-    .description('Sign in with your Scync account (email/password by default)')
-    .option('--email <email>', 'Account email (email/password sign-in)')
-    .option('--google', 'Sign in with Google (requires a configured OAuth desktop client)')
+    .description('Sign in with Google, or use --email for email/password')
+    .option('--email <email>', 'Use email/password sign-in instead of Google')
     .option('--no-browser', 'Do not open browser automatically')
     .option('--port <port>', 'Local port for OAuth callback redirect')
     .action(async (opts) => {

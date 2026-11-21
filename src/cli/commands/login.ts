@@ -18,17 +18,17 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
   const auth = getAuthInstance();
   const { clientId, clientSecret } = getGoogleClientConfig();
 
-  if (options.google && !clientId) {
+  // Google unless email/password was explicitly requested. The bundled desktop
+  // client means this works on a fresh install with no configuration.
+  const useGoogle = !options.email;
+
+  if (useGoogle && !clientId) {
     throw new CliError(
-      'Google sign-in is not configured for this install. It needs a Google "Desktop app" OAuth client. ' +
+      'Google sign-in is not configured for this install. ' +
         'Use email/password instead: scync login --email you@example.com',
       ExitCode.GENERAL_ERROR
     );
   }
-
-  // Google only when explicitly requested; email/password is the default path
-  // because it needs no OAuth client configuration.
-  const useGoogle = options.google === true;
 
   if (!useGoogle) {
     // Email / Password Flow

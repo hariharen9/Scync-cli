@@ -6,4 +6,4 @@
  * (the path would resolve relative to dist). A unit test asserts this value
  * matches package.json so the two cannot drift during a release.
  */
-export const VERSION = '0.1.2';
+export const VERSION = '0.1.3';
