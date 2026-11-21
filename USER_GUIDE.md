@@ -69,19 +69,24 @@ npm link        # makes `scync` available globally in your terminal
 ### Step 1 — Sign in
 
 ```bash
-scync login
-```
-
-This opens your browser and signs you in with Google — **the same account you
-use in the Scync web app**. If your account is email/password instead:
-
-```bash
 scync login --email you@example.com
 ```
 
-You'll be prompted for your password (hidden as you type). After this you
-usually never need to log in again on this machine. The stored login expires
-after 30 days by default; see `auth.maxAge` in section 8.
+Use the **same account** you use in the Scync web app. You'll be prompted for
+your account password (hidden as you type). After this you usually never need
+to log in again on this machine. The stored login expires after 30 days by
+default; see `auth.maxAge` in section 8.
+
+Prefer Google? It needs your own OAuth **Desktop app** client configured as
+`SCYNC_GOOGLE_CLIENT_ID` in `~/.scync/.env`, then:
+
+```bash
+scync login --google
+```
+
+Google is off by default because Google requires a client secret for Web
+application clients; email/password works everywhere with no setup. In the TUI,
+the Google option appears only when a client is configured.
 
 If this account has no vault yet, the CLI tells you and points you to
 <https://scync.space/app> to create one. Then press `U` to unlock.
@@ -439,9 +444,9 @@ Precedence:
 3. bundled hosted defaults
 
 `SCYNC_USE_EMULATORS=true` switches to the local Firebase emulators; it is
-never on by default. Google sign-in uses a bundled public desktop client id
-with PKCE, so no client secret is required. If Google sign-in is unavailable
-for your project, use `scync login --email you@example.com`.
+never on by default. Google sign-in is opt-in and needs your own OAuth Desktop
+app client (`SCYNC_GOOGLE_CLIENT_ID`); without it, use
+`scync login --email you@example.com`.
 
 ---
 

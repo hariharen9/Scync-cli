@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import {
   HOSTED_CONFIG,
-  HOSTED_GOOGLE_CLIENT_ID,
   getDefaultConfig,
   getGoogleClientConfig,
+  isGoogleLoginEnabled,
   isHostedBackend,
 } from '../firebase.js';
 
@@ -59,11 +59,9 @@ describe('hosted backend defaults', () => {
     expect(config.apiKey).not.toContain('demo');
   });
 
-  it('bundles a public Google client id but no client secret', () => {
-    expect(getGoogleClientConfig()).toEqual({
-      clientId: HOSTED_GOOGLE_CLIENT_ID,
-      clientSecret: '',
-    });
+  it('does not bundle a Google client, since the hosted one needs a secret', () => {
+    expect(getGoogleClientConfig()).toEqual({ clientId: '', clientSecret: '' });
+    expect(isGoogleLoginEnabled()).toBe(false);
   });
 });
 
@@ -104,6 +102,7 @@ describe('self-hosting overrides', () => {
     process.env.SCYNC_GOOGLE_CLIENT_ID = 'self-client';
     process.env.SCYNC_GOOGLE_CLIENT_SECRET = 'self-secret';
     expect(getGoogleClientConfig()).toEqual({ clientId: 'self-client', clientSecret: 'self-secret' });
+    expect(isGoogleLoginEnabled()).toBe(true);
   });
 
   it('keeps emulator mode opt-in only', () => {

@@ -2,7 +2,7 @@
 
 > Zero-knowledge developer secrets manager with a full-screen terminal UI and a scriptable CLI.
 
-[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-109%20passed-brightgreen.svg)]()
 [![npm](https://img.shields.io/npm/v/scync-cli.svg)](https://www.npmjs.com/package/scync-cli)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
@@ -79,9 +79,11 @@ See [`src/tui/README.md`](./src/tui/README.md) for architecture, data flow and e
 ## ⌨️ The CLI (secondary: scripting & automation)
 
 ```bash
-# Authenticate (Google browser loopback, or email/password)
-scync login
+# Authenticate with your Scync account email + password
 scync login --email you@example.com
+
+# Optional: Google sign-in (needs your own OAuth desktop client)
+scync login --google
 
 # Unlock once; the short-lived key agent serves later commands
 scync unlock
@@ -177,7 +179,7 @@ scync            # opens the terminal UI
 The CLI ships with the hosted Scync backend already configured. No `.env`, no
 project setup, no build step.
 
-1. `scync` → sign in with email/password or Google.
+1. `scync` → sign in with your Scync account email and password.
 2. Press `U` to unlock with your master password.
 
 New to Scync? Create your account and vault at
@@ -204,9 +206,10 @@ Precedence is: `SCYNC_*` environment variables (or `~/.scync/.env`) →
 `VITE_*` development variables → bundled hosted defaults. Emulator mode is
 opt-in only (`SCYNC_USE_EMULATORS=true`).
 
-Google sign-in uses a bundled public desktop client id with PKCE and a
-loopback redirect; no client secret is shipped. Email/password sign-in always
-works and needs no extra configuration.
+Google sign-in is optional and off by default. It requires your own Google
+**Desktop app** OAuth client (`SCYNC_GOOGLE_CLIENT_ID`), because Google requires
+a client secret for Web application clients even with PKCE. Email/password
+sign-in always works and needs no extra configuration.
 
 ### From source (contributors)
 
@@ -226,7 +229,7 @@ npm link        # makes `scync` available globally
 
 | Command | Options | Description |
 |---|---|---|
-| `scync login` | `--email`, `--no-browser`, `--port` | Google OAuth loopback or email/password sign-in. |
+| `scync login` | `--email`, `--google`, `--no-browser`, `--port` | Email/password sign-in by default; `--google` uses your OAuth desktop client. |
 | `scync logout` | `--yes` | Remove stored session and lock the agent. |
 | `scync whoami` | `--json` | Show active identity and token expiry. |
 | `scync status` | `--json` | Vault, biometrics, recovery kit and agent TTL. |
@@ -293,7 +296,7 @@ These are project rules, not suggestions:
 
 ```bash
 npm run typecheck
-npm test               # 16 suites, 106 unit tests (incl. headless TUI render/key/edit)
+npm test               # 17 suites, 109 unit tests (incl. headless TUI render/key/edit)
 npm run test:emulator  # Firebase emulator integration
 npm run build
 ```

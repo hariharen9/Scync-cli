@@ -69,8 +69,9 @@ export function createProgram(): Command {
   // --- Auth Commands ---
   program
     .command('login')
-    .description('Authenticate with your Firebase account (Google or Email/Password)')
-    .option('--email <email>', 'Sign in using email and password')
+    .description('Sign in with your Scync account (email/password by default)')
+    .option('--email <email>', 'Account email (email/password sign-in)')
+    .option('--google', 'Sign in with Google (requires a configured OAuth desktop client)')
     .option('--no-browser', 'Do not open browser automatically')
     .option('--port <port>', 'Local port for OAuth callback redirect')
     .action(async (opts) => {

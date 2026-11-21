@@ -2,6 +2,17 @@
 
 All notable changes to `scync-cli` are documented here.
 
+## 0.1.1 — 2026-11-20
+
+### Fixed
+
+- **Login works out of the box.** `scync login` previously defaulted to Google
+  with a Web application OAuth client, which Google rejects during token
+  exchange unless a client secret is supplied — so a fresh install could not
+  sign in. Email/password is now the default path and needs no configuration.
+- Google sign-in is now opt-in (`scync login --google`) and only offered when an
+  OAuth client id is configured. The TUI hides the Google action otherwise.
+
 ## 0.1.0 — 2026-11-20
 
 First npm release, distributed as `scync-cli`.

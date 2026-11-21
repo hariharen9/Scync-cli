@@ -2240,7 +2240,8 @@ export class TuiApp {
     const { clientId, clientSecret } = getGoogleClientConfig();
     if (!clientId) {
       this.state.login.error =
-        'Google sign-in needs SCYNC_GOOGLE_CLIENT_ID in ~/.scync/.env. Use email/password instead.';
+        'Google sign-in is not configured. Use your email and password above instead.';
+      this.requestRender();
       return;
     }
     this.state.login.busy = true;

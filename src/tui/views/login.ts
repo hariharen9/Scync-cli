@@ -4,6 +4,7 @@ import type { Key } from '../keys.js';
 import { isSpecial } from '../keys.js';
 import { truncate, wrapText } from '../width.js';
 import { drawPanel } from '../widgets.js';
+import { isGoogleLoginEnabled } from '../../core/firebase.js';
 function centered(width: number, height: number, w: number, h: number): Rect {
   const rw = Math.max(30, Math.min(w, width - 6));
   const rh = Math.max(12, Math.min(h, height - 4));
@@ -108,10 +109,22 @@ export function renderLogin(
   } else {
     buf.put(x, y, '[ Enter ]', { fg: p.bg, bg: p.accent, bold: true });
     buf.put(x + 11, y, 'Sign in', { fg: p.accent, bold: true });
-    buf.put(x + 22, y, '[ F2 ]', { fg: p.bg, bg: p.panelAlt, bold: true });
-    buf.put(x + 29, y, 'Google', { fg: p.muted });
+    if (isGoogleLoginEnabled()) {
+      buf.put(x + 22, y, '[ F2 ]', { fg: p.bg, bg: p.panelAlt, bold: true });
+      buf.put(x + 29, y, 'Google', { fg: p.muted });
+    }
   }
   y += 2;
+
+  if (!isGoogleLoginEnabled()) {
+    for (const line of wrapText(
+      'Sign in with your Scync account email and password. No Google setup required.',
+      w
+    ).slice(0, 2)) {
+      if (y >= rect.y + rect.h - 2) break;
+      buf.put(x, y++, line, { fg: p.faint }, w);
+    }
+  }
 
   for (const line of wrapText(
     'The login only proves identity. Your vault master password is separate, never stored, and cannot be recovered if forgotten.',

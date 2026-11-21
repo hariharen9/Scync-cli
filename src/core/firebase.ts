@@ -36,12 +36,15 @@ export const HOSTED_CONFIG = {
 } as const;
 
 /**
- * Google OAuth client used for the loopback (PKCE) sign-in flow. This is a
- * public client identifier, not a secret. No client secret is bundled: the
- * flow uses PKCE and loopback redirects, which native/desktop clients support.
+ * Google OAuth client for the loopback (PKCE) sign-in flow.
+ *
+ * The hosted Scync project only has a *Web application* OAuth client, and
+ * Google requires a `client_secret` for that client type even with PKCE. We do
+ * not ship a secret, so Google sign-in is only available when the user (or a
+ * self-hoster) supplies their own "Desktop app" client — those are true public
+ * clients and work without a secret. Email/password sign-in needs nothing.
  */
-export const HOSTED_GOOGLE_CLIENT_ID =
-  '989519172211-88ofu9b12okrf7q01d59v245vq9pit5b.apps.googleusercontent.com';
+export const HOSTED_GOOGLE_CLIENT_ID = '';
 
 export interface FirebaseClientConfig {
   apiKey: string;
@@ -85,12 +88,14 @@ export function getDefaultConfig(): FirebaseClientConfig {
 
 export function getGoogleClientConfig(): { clientId: string; clientSecret: string } {
   return {
-    clientId:
-      process.env.SCYNC_GOOGLE_CLIENT_ID ||
-      process.env.VITE_GOOGLE_CLIENT_ID ||
-      HOSTED_GOOGLE_CLIENT_ID,
+    clientId: process.env.SCYNC_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.SCYNC_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '',
   };
+}
+
+/** Google sign-in is available only when a client id is configured. */
+export function isGoogleLoginEnabled(): boolean {
+  return getGoogleClientConfig().clientId.length > 0;
 }
 
 /** True when talking to the shared hosted Scync project rather than a self-host. */

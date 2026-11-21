@@ -2,25 +2,45 @@ import { signInWithEmailAndPassword, signInWithCredential, GoogleAuthProvider } 
 import { getAuthInstance, getGoogleClientConfig } from '../../core/firebase.js';
 import { createSessionFromUser } from '../../auth/session.js';
 import { loginWithGoogleLoopback } from '../../auth/loopback.js';
-import { promptPassword, promptText } from '../prompts.js';
+import { promptPassword } from '../prompts.js';
 import { CliError, ExitCode } from '../errors.js';
 import { renderCard, infoBanner } from '../tui.js';
 import pc from 'picocolors';
 
 export interface LoginOptions {
   email?: string;
+  google?: boolean;
   noBrowser?: boolean;
   port?: string;
 }
 
 export async function loginCommand(options: LoginOptions): Promise<void> {
   const auth = getAuthInstance();
+  const { clientId, clientSecret } = getGoogleClientConfig();
 
-  if (options.email) {
+  if (options.google && !clientId) {
+    throw new CliError(
+      'Google sign-in is not configured for this install. It needs a Google "Desktop app" OAuth client. ' +
+        'Use email/password instead: scync login --email you@example.com',
+      ExitCode.GENERAL_ERROR
+    );
+  }
+
+  // Google only when explicitly requested; email/password is the default path
+  // because it needs no OAuth client configuration.
+  const useGoogle = options.google === true;
+
+  if (!useGoogle) {
     // Email / Password Flow
-    const email = options.email.trim().toLowerCase();
+    const email = (options.email ?? '').trim().toLowerCase();
+    if (!email) {
+      throw new CliError(
+        'Provide your account email: scync login --email you@example.com',
+        ExitCode.GENERAL_ERROR
+      );
+    }
     const password = await promptPassword(`Password for ${email}: `);
-    
+
     if (!password) {
       throw new CliError('Password cannot be empty.', ExitCode.GENERAL_ERROR);
     }
@@ -46,17 +66,6 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     }
   } else {
     // Google OAuth Flow
-    const { clientId, clientSecret } = getGoogleClientConfig();
-    if (!clientId) {
-      console.log(pc.yellow('Notice: Google OAuth is not configured for this build.'));
-      console.log('Sign in with Email & Password instead:');
-      console.log(pc.cyan('  scync login --email <your-email>\n'));
-      
-      const email = await promptText('Enter your email to sign in: ');
-      if (!email) return;
-      return loginCommand({ ...options, email });
-    }
-
     infoBanner('Initiating browser authorization...', [
       { key: 'Method', val: 'Google OAuth 2.0 PKCE' },
       { key: 'Callback', val: options.port ? `http://localhost:${options.port}/callback` : 'Auto-selected loopback port' }

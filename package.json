@@ -1,6 +1,6 @@
 {
   "name": "scync-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-knowledge developer secrets manager with a full-screen terminal UI and CLI",
   "type": "module",
   "main": "dist/index.js",
