@@ -206,10 +206,11 @@ Precedence is: `SCYNC_*` environment variables (or `~/.scync/.env`) →
 `VITE_*` development variables → bundled hosted defaults. Emulator mode is
 opt-in only (`SCYNC_USE_EMULATORS=true`).
 
-Google sign-in works out of the box: the package bundles a Google **Desktop
-app** OAuth client, whose secret is non-confidential by Google's own model for
-installed apps (the same approach `gcloud` and `gh` use). Email/password is
-always available as a fallback. Self-hosters can supply their own client with
+Google sign-in works out of the box: releases bundle a Google **Desktop app**
+OAuth client. Google treats the secret for installed-app clients as
+non-confidential (the same model `gcloud` and `gh` use), so it is injected at
+build time from CI secrets rather than committed. Email/password is always
+available as a fallback. Self-hosters can supply their own client with
 `SCYNC_GOOGLE_CLIENT_ID` / `SCYNC_GOOGLE_CLIENT_SECRET`.
 
 ### From source (contributors)

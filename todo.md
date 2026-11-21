@@ -10,8 +10,9 @@ scync
 The installed command is `scync`. It works against the hosted Scync backend out
 of the box, while self-hosted backends override every field through env vars.
 
-**Status:** published. `scync-cli@0.1.0` is live on npm (`latest` and `next`),
-installed and verified from the registry, with signed SLSA provenance.
+**Status:** published. `scync-cli@0.1.4` is live on npm (`latest` and `next`),
+installed and verified from the registry, with signed SLSA provenance and the
+bundled Google Desktop app client.
 
 ---
 
